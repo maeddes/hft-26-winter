@@ -1,6 +1,6 @@
-# private, stays local
-recordings/
-prep/
-dropbox/
+# local only - see CLAUDE.md
+inbox/
+share/
+private/
 
 .DS_Store
