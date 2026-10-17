@@ -1,0 +1,6 @@
+# private, stays local
+recordings/
+prep/
+dropbox/
+
+.DS_Store
