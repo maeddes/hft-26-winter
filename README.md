@@ -1,14 +1,16 @@
 # hft-26-winter
 
-## 2026-Oct-16 Kick-off: Why Distributed Systems?
+Modern Distributed Systems – HFT Stuttgart, winter semester 2026/27
 
-### Organisational Notes
+## Organisation
 
 - Slides and recordings go to the shared folder. This repository documents what we did in each session.
 - Every session gets **learning objectives** and **review questions**. If you can answer the review questions, you are well prepared for the exam. Some exam questions are taken from them.
 - Default is on-site, Friday morning. If a session has to be remote, you will be told by Thursday.
 - Code and documentation for submissions in English, please. Any Git repository that is accessible to the lecturer is fine (GitHub, HFT GitLab, ...).
 - Background talk: [From Classroom To Container: Teaching Distributed Systems With CNCF & Cloud Native Technologies](https://www.youtube.com/watch?v=7Dt5QAK9bkE) (KubeCon + CloudNativeCon Europe 2026)
+
+## 2026-Oct-16 Kick-off: Why Distributed Systems?
 
 ### Brainstorming: Modern Software Architecture / Distributed Systems
 
@@ -20,14 +22,12 @@
 
 ### **Content Overview**
 
-**Where are we starting?**
-   - Short anonymous survey on prior knowledge: languages, frameworks, communication, databases, containers, Kubernetes, AI.
-   - AI appears in two roles this semester: assisting us while building software, and being integrated into the application itself.
-   - Polyglot: we will not learn many new languages. Components talk over universal protocols, so the language inside a component is your choice.
+**Starting point**
+   - Anonymous survey on prior knowledge (languages, communication, databases, containers, Kubernetes, AI).
+   - Polyglot: components talk over universal protocols, so the language inside a component is your choice. AI plays two roles: helping us build, and being part of the application.
 
 **What makes a distributed system a distributed system?**
-   - Multiple components, connected over a network, working towards one common goal.
-   - To its users, a distributed system looks like one system (nobody opening Google Maps asks how many containers are running).
+   - Multiple components, connected over a network, working towards one common goal, and looking like one system to its users.
 
 **Why distribute? Two perspectives**
    - Consumer: speed, (high) availability, security, independence of the user device.
@@ -47,9 +47,9 @@
 
 **From frameworks to platforms**
    - Before containers: distributed functionality inside the application (Netflix OSS / Spring Cloud: Eureka, Ribbon, Hystrix, Zuul).
-   - Containers (Docker): same runtime and command for every component, virtual networks, easy swapping of components. Limits: no built-in dynamic updates, scaling without automatic traffic distribution.
+   - Containers (Docker): same runtime and command for every component, virtual networks, easy swapping of components. Limits of plain Docker/Compose: no rolling updates, scaled instances only get basic DNS round-robin, no health-aware load balancing.
    - Kubernetes: Deployments for updates, ReplicaSets for the number of instances, Services for a stable endpoint that distributes traffic across instances.
-   - Service meshes: fine-grained routing (percentage, cookie-based) and encrypted service-to-service communication beyond Kubernetes.
+   - Service meshes: fine-grained routing between services (percentage, header/cookie-based) and encrypted service-to-service communication (mTLS) beyond what plain Kubernetes Services offer.
    - Observability with OpenTelemetry: metrics, traces and logs from polyglot components, made visible.
 
 **CNCF**
@@ -60,7 +60,7 @@
    - This year: going in a similar direction, likely with more Kubernetes (optional) and an AI aspect (how AI was used to build it, or an AI service integrated into it). Description follows.
 
 **Q&A: Docker vs. Podman**
-   - Both are fine. Examples here use Docker. Kubernetes uses containerd rather than Docker as its runtime; underneath, both Docker and containerd use runc.
+   - Both are fine. Examples here use Docker. Kubernetes uses containerd or CRI-O rather than Docker as its runtime. Docker itself runs on containerd, and the low-level runtime underneath is runc in both cases. Images built with Docker run everywhere, since they follow the OCI standard.
 
 ---
 
