@@ -169,3 +169,90 @@ By the end of this lecture, students will be able to:
 11. Why is a list like "AWS, Azure, Docker, Kubernetes" a misleading answer to "what are cloud technologies"?
 12. What do the CNCF maturity levels tell you about a project, and what don't they tell you?
 13. Why would a team or a class use a cloud development environment?
+
+## 2026-Oct-30 Containers: Why, Containers vs. VMs, Docker Basics
+
+### Brainstorming: Containers – What, Why, How?
+
+![Brainstorming containers](sketches/2026-10-30_brainstorm-containers.excalidraw.png)
+
+### The DevOps Problem
+
+![The DevOps problem](sketches/2026-10-30_devops-problem-reproducibility.excalidraw.png)
+
+### Containers as a Standardized Format
+
+![Container as a standardized format](sketches/2026-10-30_container-standardized-format.excalidraw.png)
+
+### **Content Overview**
+
+**What is a container? Starting from shipping containers**
+   - Inside: anything that fits – from the outside you can't tell. Outside: always the same shape, so the interface never changes. Cranes, ships, trucks and trains handle every container the same way, anywhere in the world.
+   - Containers are easy to stack and don't know about each other.
+   - Background: the modern shipping container goes back to Malcom McLean, whose converted tanker *Ideal X* carried 58 containers from Newark to Houston in April 1956.
+
+**The DevOps problem: reproducibility**
+   - Developers build and test on their local setup: "it runs on my machine". Operations get code plus written instructions and try to reproduce the environment – and often fail, because every machine and every manual step differs.
+   - The container idea: ship the environment instead of instructions. An image bundles the application with its frameworks and libraries into one immutable piece of software. Any container runtime can load, run, stop and start it: "it runs on my container runtime, too".
+
+**Containers vs. virtual machines**
+   - Hypervisor type 1 runs directly on the hardware, type 2 on top of an operating system (e.g. a VM on a laptop). A VM virtualizes the hardware and carries a full guest operating system.
+   - Containers run on top of an operating system and share its kernel. An image contains only the application with its libraries and, if needed, the userland of a distribution (e.g. Debian or Alpine libraries and tools) – never a kernel of its own.
+   - Consequences: megabytes instead of gigabytes, seconds instead of minutes. Containers are cheap to start and to throw away; VMs tend to run long and carry state.
+   - Containers usually talk to each other over virtual networks rather than inside one operating system.
+   - Containers need a Linux kernel: on macOS and Windows, Docker runs a small Linux VM in the background. GUI applications are not a typical use case, and the isolation is weaker than that of a VM.
+
+**Under the hood: a container is an isolated Linux process**
+   - `chroot` (1979): changes the root directory a process can see.
+   - Namespaces: limit what a process can see – processes, network, mounts, users.
+   - cgroups (developed at Google from 2006, part of Linux since 2008): limit what a process can use – CPU, memory, I/O.
+   - A container engine combines these behind a simple interface: `docker run`, `docker stop`, ...
+   - History: chroot (1979), cgroups (2008), LXC (2008), Docker (2013) – presented by Solomon Hykes in a five-minute lightning talk at PyCon. The technology existed for years; Docker made it easy to use.
+
+**Images and containers**
+   - The image is the template, the container is the running instance – like a class and an object.
+   - Images are built from layers. Layers are stored once and shared between images, so a new image only adds its own layers.
+   - A running container adds a writable layer. Changes stay in that container; the image itself never changes.
+
+**Docker in practice** (demo in a codespace)
+   - Architecture: client → daemon → local image store → registry ([Docker Hub](https://hub.docker.com) by default).
+   - `docker run postgres:18` pulls the image if needed and starts a container. Postgres needs `-e POSTGRES_PASSWORD=...` to start.
+   - `docker ps` / `docker ps -a`, `docker images`, `docker pull`, `docker build -t <name>:<tag> .`, `docker login`, `docker push`.
+   - A first Dockerfile: `FROM` (base image: `scratch`, `alpine`, `ubuntu`), `COPY`, `CMD`. The base image decides the size: from a few KB to over 100 MB.
+   - Tags: `latest` is just a tag name the publisher moves along. Fine for experiments, but pin a version in production.
+   - Prefer Docker Official Images and verified publishers.
+   - Images are built for a CPU architecture: an image built in a codespace (`linux/amd64`) did not run on an Apple Silicon Mac (`arm64`). Multi-platform images solve this.
+
+### **Homework**
+
+- Play around with the Docker commands above, e.g. in a codespace. Creating a Docker ID is optional – you only need it to push your own images.
+- Recommended by a fellow student: [The Only Docker Tutorial You Need To Get Started](https://www.youtube.com/watch?v=DQdB7wFEygo) (The Coding Sloth)
+
+---
+
+### **Learning Objectives**
+
+By the end of this lecture, students will be able to:
+- Explain the DevOps problem and how containers address reproducibility.
+- Distinguish containers from virtual machines and explain what is shared and what is isolated.
+- Name the Linux building blocks of containers (chroot, namespaces, cgroups) and what each of them does.
+- Distinguish images from containers and explain the layer concept.
+- Use the basic Docker commands to run, build, tag, push and pull images.
+- Explain why `latest` should not be used in production.
+
+---
+
+### **Student/Review Questions**
+
+1. What do shipping containers and software containers have in common? Why is the identical "shape" the key property?
+2. Describe the DevOps problem. Why do written installation instructions often fail to reproduce an environment?
+3. What does "immutable" mean for a container image, and why is it important?
+4. Compare containers and virtual machines: what does each virtualize, and what are the consequences for size and startup time?
+5. A container image contains an "OS" layer. Does the container bring its own operating system? Explain.
+6. What do chroot, namespaces and cgroups each contribute to a container?
+7. What is the difference between an image and a container? Use an analogy.
+8. Why does pulling a second image often go faster than the first? Explain the layer concept.
+9. What happens to a file you create inside a running container when you start a new container from the same image?
+10. Explain what `docker build`, `docker push`, `docker pull` and `docker run` do. Which of them start a container?
+11. Why should you avoid the `latest` tag in production?
+12. Why can an image built on one machine fail to run on another machine with a different CPU architecture? How can this be solved?

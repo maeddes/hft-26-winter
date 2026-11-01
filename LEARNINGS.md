@@ -5,6 +5,30 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [x] addressed in class
 - [ ] not yet addressed (or only published here)
 
+## 2026-Oct-30
+
+### Corrections
+
+- [ ] **Origin of the shipping container:** not a tobacco farmer in the 1800s. Modern containerization goes back to Malcom McLean, a US trucking entrepreneur: his converted tanker *Ideal X* carried 58 containers from Newark to Houston on 26 April 1956. McLean released his patents, which helped turn the container into an international standard.
+- [ ] **The kernel is not split up:** "each container has its own slice of the kernel" is misleading. There is exactly one kernel; containers are ordinary processes on it. Namespaces restrict what a process can *see*, cgroups what it can *use*. (Explained correctly later in the session: "just an isolated Linux process".)
+- [ ] **cgroups timeline:** developed at Google from 2006 under the name "process containers", merged into Linux 2.6.24 in January 2008. The building blocks were complete in 2008, not 2006. Namespaces arrived step by step from 2002 (mount) to 2013 (user namespaces).
+- [ ] **LXC (2008)** was initially developed at IBM, not Canonical; Canonical sponsored it later (LXD). Google's own tool was called *lmctfy – "Let Me Contain That For You"* (2013).
+- [ ] **Hypervisor type 1 runs directly on the hardware** ("bare metal"), not on an operating system. Type 2 runs on top of an operating system.
+- [ ] **The Apple Silicon demo:** images are built for one CPU architecture. The codespace built `linux/amd64`, the Mac is `arm64`. The "manifest" needed is an *image index* (manifest list): `docker buildx build --platform linux/amd64,linux/arm64 -t <name> --push .` builds both variants under one tag. Docker Desktop can also run amd64 images on Apple Silicon through emulation (`--platform linux/amd64`), just slower. Portability holds per architecture – a good teaching point rather than a failed demo.
+- [ ] **"One process" and "only network" are conventions, not limits:** a container can run several processes, and containers can share volumes or namespaces (in Kubernetes, containers in one pod even share localhost).
+- [ ] **`latest` is just a tag name:** the publisher decides where it points; it is not guaranteed to be the newest version. Locally it does not change until you pull again. Pinning a version is good; pinning a digest (`postgres@sha256:…`) is fully reproducible.
+- [ ] **Closing the browser does not stop a codespace:** it keeps running until the idle timeout (default 30 minutes) and keeps consuming quota. Stop it explicitly. When it stops, processes end, but files and pulled images survive. Inactive codespaces are deleted after 30 days by default.
+- [ ] **Bitnami is no longer a safe recommendation:** since 28 Aug 2025, Broadcom no longer offers free versioned Bitnami images. Old images moved to `bitnamilegacy` and get no updates.
+- [ ] **`docker login` with a token:** use a Docker Hub Personal Access Token instead of the account password, as the CLI suggests. In a codespace the credentials end up unencrypted in `~/.docker/config.json`.
+
+### Ideas to go deeper
+
+- [ ] **Docker Hub pull limits hit classrooms:** anonymous pulls are limited to 100 per 6 hours *per IP address*. A whole class behind the HFT network shares one IP. With `docker login`, each student gets 200 pulls per 6 hours of their own.
+- [ ] **Fix the Apple Silicon demo live** with a multi-platform build – it shows image index, architecture and emulation in one go.
+- [ ] **`docker commit` vs. Dockerfile:** commit works, but is not reproducible. A Dockerfile documents how the image came about – the same reproducibility argument as the DevOps problem.
+- [ ] **Sketch:** label the "OS" layer as *OS userland / base image* and show the shared kernel below the container runtime. That answers the "VM without an operating system" question from the chat.
+- [ ] **Image layers in practice:** `docker history <image>` shows the layers and their sizes; `docker system df` and `docker system prune` for cleaning up.
+
 ## 2026-Oct-23
 
 ### Corrections
@@ -28,7 +52,7 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [ ] **Service discovery in practice:** client-side vs. server-side discovery. In Kubernetes: DNS and Services, so no extra registry is needed.
 - [ ] **Serverless and scale to zero** as the extreme end of elasticity and "pay per use".
 - [ ] **Shared responsibility:** who secures what in IaaS, PaaS and SaaS.
-- [ ] **The codespace is a container:** defined by a `devcontainer.json` ([containers.dev](https://containers.dev)) – the bridge to the container session.
+- [x] **The codespace is a container:** defined by a `devcontainer.json` ([containers.dev](https://containers.dev)) – the bridge to the container session.
 
 ## 2026-Oct-16
 
