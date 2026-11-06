@@ -256,3 +256,29 @@ By the end of this lecture, students will be able to:
 10. Explain what `docker build`, `docker push`, `docker pull` and `docker run` do. Which of them start a container?
 11. Why should you avoid the `latest` tag in production?
 12. Why can an image built on one machine fail to run on another machine with a different CPU architecture? How can this be solved?
+
+## Simple REST API
+
+The FastAPI application exposes `/hello` (which includes the server hostname),
+`/crash` (which raises a simulated server error), and CRUD endpoints for a
+shopping list. Each item has a `name` used as its ID and a non-negative integer
+`amount`. The list is held in memory and is reset when the application restarts.
+
+Run it in a Codespace:
+
+```bash
+python -m pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Open port 8000 in the Codespaces Ports tab, then visit `/docs` for the
+interactive API documentation. The collection endpoints are `GET` and `POST`
+`/shopping-list`; individual items use `GET`, `PUT`, and `DELETE`
+`/shopping-list/{name}`.
+
+Build and run it in Docker:
+
+```bash
+docker build -f Dockerfile-new -t shopping-list-api .
+docker run --rm -p 8000:8000 shopping-list-api
+```
