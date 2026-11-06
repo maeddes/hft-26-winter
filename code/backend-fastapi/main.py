@@ -16,7 +16,7 @@ shopping_list: dict[str, ShoppingItem] = {}
 
 @app.get("/hello")
 def hello() -> dict[str, str]:
-    return {"message": "Hello!", "hostname": socket.gethostname()}
+    return {"message": "Good Morning!", "hostname": socket.gethostname()}
 
 
 @app.get("/crash")

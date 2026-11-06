@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shopping List</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <div>
+        <p class="eyebrow">Simple REST frontend</p>
+        <h1>Shopping list</h1>
+      </div>
+      <a class="button secondary" href="{{ url_for('hello') }}">Check backend</a>
+    </header>
+
+    {% if hello %}
+    <section class="notice success" aria-live="polite">
+      {{ hello.message }} Server: <strong>{{ hello.hostname }}</strong>
+    </section>
+    {% endif %}
+
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+    <section class="notice {{ category }}" role="status">{{ message }}</section>
+    {% endfor %}
+
+    <section class="panel">
+      <h2>Add an item</h2>
+      <form class="add-form" action="{{ url_for('create_item') }}" method="post">
+        <label>
+          Item name
+          <input name="name" required maxlength="200" placeholder="e.g. apples">
+        </label>
+        <label>
+          Amount
+          <input name="amount" type="number" min="0" step="1" value="1" required>
+        </label>
+        <button type="submit">Add item</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Your items <span class="count">{{ items|length }}</span></h2>
+      {% if items %}
+      <ul class="items">
+        {% for item in items %}
+        <li class="item">
+          <strong class="item-name">{{ item.name }}</strong>
+          <form class="update-form" action="{{ url_for('update_item', name=item.name) }}" method="post">
+            <label>
+              <span class="visually-hidden">Amount for {{ item.name }}</span>
+              <input name="amount" type="number" min="0" step="1" value="{{ item.amount }}" required>
+            </label>
+            <button class="secondary" type="submit">Update</button>
+          </form>
+          <form action="{{ url_for('delete_item', name=item.name) }}" method="post">
+            <button class="danger" type="submit">Delete</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty">No items yet. Add one above.</p>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
