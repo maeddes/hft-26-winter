@@ -220,13 +220,134 @@ docker ps -a
 
 ## 6. A long-running container: a web server
 
-Start nginx in the background (`-d`), give it a name, and publish its port 80 as port 8080 on your machine:
+So far every container ran one command and exited. A web server is different: it keeps running and waits for requests. In this section you start the same image several times, each time with one more option.
+
+### 6.1 Run it in the foreground
+
+Start nginx without any options:
 
 ```bash
-docker run -d --name web -p 8080:80 nginx:1.29-alpine
+docker run nginx:1.29-alpine
 ```
 
-Docker prints the full container ID. Check that it is running:
+Should display output like:
+
+```text
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+...
+2026/11/07 10:10:00 [notice] 1#1: nginx/1.29.3
+2026/11/07 10:10:00 [notice] 1#1: start worker processes
+2026/11/07 10:10:00 [notice] 1#1: start worker process 30
+```
+
+The output of the container appears directly in your terminal, and you don't get your prompt back: the container is running in the foreground. **Open a second terminal** (in a codespace: the **+** in the terminal panel) and list the running containers:
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE               COMMAND                  CREATED          STATUS          PORTS     NAMES
+3f9c2a7b1d4e   nginx:1.29-alpine   "/docker-entrypoint.…"   20 seconds ago   Up 19 seconds   80/tcp    eager_hopper
+```
+
+Running, listening on port `80/tcp`. Try to reach it:
+
+```bash
+curl localhost:80
+```
+
+```text
+curl: (7) Failed to connect to localhost port 80 after 0 ms: Couldn't connect to server
+```
+
+nginx listens on port 80 – but *inside* the container. We come back to this in a moment.
+
+Go back to the **first terminal** and stop the container with **Ctrl+C**. You get your prompt back. In either terminal:
+
+```bash
+docker ps -a
+```
+
+```text
+CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS                     PORTS     NAMES
+3f9c2a7b1d4e   nginx:1.29-alpine   "/docker-entrypoint.…"   1 minute ago    Exited (0) 5 seconds ago             eager_hopper
+...
+```
+
+Ctrl+C stopped the process – and with it the container.
+
+### 6.2 Run it in the background
+
+Start nginx again, this time detached (`-d`):
+
+```bash
+docker run -d nginx:1.29-alpine
+```
+
+```text
+b81e4c6a2f9d0c3e7a5b1d8f2e6c4a9b7d3f1e5c8a2b6d4f9e1c7a3b5d8f2e6c
+```
+
+Docker prints the full ID of the new container and gives you the prompt back right away. The container runs in the background.
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS         PORTS     NAMES
+b81e4c6a2f9d   nginx:1.29-alpine   "/docker-entrypoint.…"   5 seconds ago   Up 4 seconds   80/tcp    sharp_babbage
+```
+
+`docker ps` shows only the running container. `docker ps -a` shows both – the new running one and the stopped one from before:
+
+```bash
+docker ps -a
+```
+
+```text
+CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS                     PORTS     NAMES
+b81e4c6a2f9d   nginx:1.29-alpine   "/docker-entrypoint.…"   10 seconds ago  Up 9 seconds               80/tcp    sharp_babbage
+3f9c2a7b1d4e   nginx:1.29-alpine   "/docker-entrypoint.…"   2 minutes ago   Exited (0) 1 minute ago              eager_hopper
+...
+```
+
+Two different containers from the same image. Where did the output go? It is still collected – look at the logs (use the ID from *your* output):
+
+```bash
+docker logs b81e
+```
+
+```text
+...
+2026/11/07 10:12:00 [notice] 1#1: start worker processes
+2026/11/07 10:12:00 [notice] 1#1: start worker process 30
+```
+
+nginx is up and listening. Try again:
+
+```bash
+curl localhost:80
+```
+
+```text
+curl: (7) Failed to connect to localhost port 80 after 0 ms: Couldn't connect to server
+```
+
+Still no connection – running in the background does not change the isolation. Stop the container:
+
+```bash
+docker stop b81e
+```
+
+### 6.3 Publish the port
+
+Start a new container and publish container port 80 as port 8080 on your machine (`-p <host-port>:<container-port>`):
+
+```bash
+docker run -d -p 8080:80 nginx:1.29-alpine
+```
 
 ```bash
 docker ps
@@ -234,10 +355,10 @@ docker ps
 
 ```text
 CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS         PORTS                                     NAMES
-9b2789d81f72   nginx:1.29-alpine   "/docker-entrypoint.…"   5 seconds ago   Up 4 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web
+c4d7e2a9f1b3   nginx:1.29-alpine   "/docker-entrypoint.…"   5 seconds ago   Up 4 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   tender_curie
 ```
 
-Call the web server:
+The `PORTS` column now shows an arrow: port 8080 on your machine leads to port 80 in the container.
 
 ```bash
 curl localhost:8080
@@ -251,35 +372,75 @@ curl localhost:8080
 ...
 ```
 
-In a codespace you can also open the **Ports** tab and open port 8080 in the browser.
+It works. In a codespace you can also open the **Ports** tab and open port 8080 in the browser. Your request now shows up in the logs:
 
-Look at the logs of the container – your `curl` request is at the end:
+```bash
+docker logs c4d7
+```
+
+```text
+...
+172.17.0.1 - - [07/Nov/2026:10:14:02 +0000] "GET / HTTP/1.1" 200 896 "-" "curl/8.5.0" "-"
+```
+
+Stop it:
+
+```bash
+docker stop c4d7
+```
+
+### 6.4 Give it a name
+
+Looking up IDs gets tedious. Start one more container, this time with a name:
+
+```bash
+docker run -d --name web -p 8080:80 nginx:1.29-alpine
+```
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE               COMMAND                  CREATED         STATUS         PORTS                                     NAMES
+9b2789d81f72   nginx:1.29-alpine   "/docker-entrypoint.…"   5 seconds ago   Up 4 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web
+```
+
+The `NAMES` column shows `web` instead of a random name. From now on you can use the name instead of the ID:
 
 ```bash
 docker logs web
 ```
 
-```text
-...
-192.168.65.1 - - [07/Nov/2026:10:10:02 +0000] "GET / HTTP/1.1" 200 896 "-" "curl/8.7.1" "-"
-```
-
-Stop the container:
-
 ```bash
 docker stop web
 ```
 
-It is not running any more, but it still exists:
+It is not running any more, but it still exists – together with the containers from before:
 
 ```bash
 docker ps -a
 ```
 
-Start it again – same container, same name, same configuration:
+```text
+CONTAINER ID   IMAGE               COMMAND                  CREATED          STATUS                      PORTS     NAMES
+9b2789d81f72   nginx:1.29-alpine   "/docker-entrypoint.…"   1 minute ago     Exited (0) 5 seconds ago              web
+c4d7e2a9f1b3   nginx:1.29-alpine   "/docker-entrypoint.…"   3 minutes ago    Exited (0) 2 minutes ago              tender_curie
+b81e4c6a2f9d   nginx:1.29-alpine   "/docker-entrypoint.…"   5 minutes ago    Exited (0) 4 minutes ago              sharp_babbage
+3f9c2a7b1d4e   nginx:1.29-alpine   "/docker-entrypoint.…"   7 minutes ago    Exited (0) 6 minutes ago              eager_hopper
+...
+```
+
+Four containers from one image – each with its own configuration. You don't change a container's configuration; you start a new one and throw the old one away.
+
+Start `web` again – same container, same name, same port:
 
 ```bash
 docker start web
+```
+
+```bash
+curl localhost:8080
 ```
 
 Try to remove it while it is running:
@@ -471,10 +632,57 @@ Go back to the parent directory:
 cd ..
 ```
 
-Remove your images:
+List what is left:
+
+```bash
+docker ps -a
+```
+
+Remove a single stopped container by ID or name (use one from *your* output):
+
+```bash
+docker rm eager_hopper
+```
+
+Remove several at once:
+
+```bash
+docker rm tender_curie sharp_babbage
+```
+
+Remove **all** stopped containers in one go (confirm with `y`):
+
+```bash
+docker container prune
+```
+
+```text
+WARNING! This will remove all stopped containers.
+Are you sure you want to continue? [y/N] y
+Deleted Containers:
+...
+```
+
+```bash
+docker ps -a
+```
+
+Now the images. Remove your own images:
 
 ```bash
 docker rmi hello-container:v1 hello-container:v2
+```
+
+An image cannot be removed while a container still uses it – even a stopped one. That is why the containers go first.
+
+Remove the pulled images, too:
+
+```bash
+docker rmi nginx:1.29-alpine alpine:3.22 hello-world
+```
+
+```bash
+docker images
 ```
 
 ## 12. Overview
@@ -489,6 +697,7 @@ docker rmi hello-container:v1 hello-container:v2
 | `docker ps` / `docker ps -a` | lists running / all containers |
 | `docker logs <container>` | shows the output of a container |
 | `docker stop` / `docker start` / `docker rm` | stops / starts / removes a container |
+| `docker container prune` | removes all stopped containers |
 | `docker tag <image> <new-name>` | adds a name to an image |
 | `docker rmi <image>` | removes a name, and the image once no name is left |
 | `docker build -t <name>:<tag> <context>` | builds an image from a Dockerfile |
