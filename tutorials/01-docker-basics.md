@@ -24,14 +24,24 @@ Should display output like (versions might differ):
 
 ```text
 Client:
- Version:           29.3.1
- API version:       1.54
- ...
+ Version:           29.9.2-2
+ API version:       1.56
+ Go version:        go1.27.3
+ Git commit:        a82e528901260c8df6073311379eac65f92db204
+ Built:             Thu Oct 22 00:00:00 2026
+ OS/Arch:           linux/amd64
+ Context:           default
+
 Server:
  Engine:
-  Version:          29.3.1
-  API version:      1.54 (minimum version 1.40)
-  ...
+  Version:          29.9.2-2
+  API version:      1.56 (minimum version 1.40)
+  Go version:       go1.27.3
+  Git commit:       0367cbeb49b9d98cb0b4f51e95f7b54b4803e76c
+  Built:            Thu Oct 22 00:00:00 2026
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ ...
 ```
 
 You need to see both parts: the **Client** (the `docker` command you type) and the **Server** (the Docker daemon that does the work). If the server part is missing, the daemon is not running.
@@ -70,11 +80,11 @@ Should display output like:
 
 ```text
 IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
-alpine:3.22          062964a69725       8.54MB             0B
-hello-world:latest   eb84fdc6f2a3        5.2kB             0B
+alpine:3.22          bfe7ceb9f09e       12.9MB         3.88MB
+hello-world:latest   c567b231f656       25.9kB         9.49kB
 ```
 
-Alpine is a minimal Linux distribution – less than 10 MB.
+Alpine is a minimal Linux distribution – just a few megabytes.
 
 ## 4. Run containers from existing images
 
@@ -94,7 +104,50 @@ This message shows that your installation appears to be working correctly.
 
 Read the four steps in the output – they describe exactly what just happened.
 
-Run a single command in an Alpine container:
+List the running containers:
+
+```bash
+docker ps
+```
+
+```text
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+
+Nothing is running. List all containers, including stopped ones:
+
+```bash
+docker ps -a
+```
+
+```text
+CONTAINER ID   IMAGE         COMMAND    CREATED          STATUS                      PORTS     NAMES
+70732510b6f7   hello-world   "/hello"   30 seconds ago   Exited (0) 29 seconds ago             infallible_torvalds
+```
+
+The container still exists, but it has exited: it ran its command `/hello`, printed the message and was done. Docker generated a random name for it.
+
+Now run Alpine without any further arguments:
+
+```bash
+docker run alpine:3.22
+```
+
+Nothing seems to happen – you get your prompt back right away. Look again:
+
+```bash
+docker ps -a
+```
+
+```text
+CONTAINER ID   IMAGE         COMMAND     CREATED          STATUS                      PORTS     NAMES
+5e3a1c9d8b27   alpine:3.22   "/bin/sh"   5 seconds ago    Exited (0) 4 seconds ago              quirky_lovelace
+70732510b6f7   hello-world   "/hello"    1 minute ago     Exited (0) 1 minute ago               infallible_torvalds
+```
+
+A container was created and started. Its command is `/bin/sh`, the default command defined in the Alpine image. A shell without anyone typing into it has nothing to do – so it exited immediately.
+
+Now give the container a command of your own. Everything after the image name **replaces** the default command:
 
 ```bash
 docker run alpine:3.22 echo "Hello from inside a container"
@@ -103,6 +156,19 @@ docker run alpine:3.22 echo "Hello from inside a container"
 ```text
 Hello from inside a container
 ```
+
+```bash
+docker ps -a
+```
+
+```text
+CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS                      PORTS     NAMES
+87dd75f6889b   alpine:3.22   "echo 'Hello from in…"   5 seconds ago    Exited (0) 4 seconds ago              hungry_dhawan
+5e3a1c9d8b27   alpine:3.22   "/bin/sh"                1 minute ago     Exited (0) 1 minute ago               quirky_lovelace
+70732510b6f7   hello-world   "/hello"                 2 minutes ago    Exited (0) 2 minutes ago              infallible_torvalds
+```
+
+Same image, different command: this time the container ran `echo` instead of `/bin/sh`.
 
 Find out which operating system the container sees:
 
@@ -118,7 +184,7 @@ PRETTY_NAME="Alpine Linux v3.22"
 ...
 ```
 
-`--rm` removes the container as soon as it exits.
+`--rm` removes the container as soon as it exits – it will not show up in `docker ps -a`.
 
 Now compare the kernel version inside a container ...
 
@@ -134,38 +200,22 @@ uname -r
 
 In a codespace both are identical: the container uses the kernel of its host – it does not bring its own. On macOS or Windows, the container shows the kernel of the small Linux VM that Docker Desktop runs in the background (e.g. `6.12.76-linuxkit`).
 
-## 5. List and remove containers
+## 5. Remove containers
 
-List running containers:
-
-```bash
-docker ps
-```
-
-```text
-CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
-```
-
-Nothing is running: every container so far ran one command and exited. List all containers, including stopped ones:
-
-```bash
-docker ps -a
-```
-
-Should display output like:
-
-```text
-CONTAINER ID   IMAGE         COMMAND                  CREATED         STATUS                     PORTS     NAMES
-87dd75f6889b   alpine:3.22   "echo 'Hello from in…"   1 minute ago    Exited (0) 1 minute ago              hungry_dhawan
-70732510b6f7   hello-world   "/hello"                 2 minutes ago   Exited (0) 2 minutes ago             infallible_torvalds
-```
-
-The containers started with `--rm` are gone; the others are still there. Docker generated random names for them.
-
-Remove one container by its ID – the first few characters are enough, as long as they are unique (use an ID from *your* output):
+The stopped containers are still listed in `docker ps -a`. Remove one by its ID – the first few characters are enough, as long as they are unique (use an ID from *your* output):
 
 ```bash
 docker rm 87dd
+```
+
+You can also use the name:
+
+```bash
+docker rm quirky_lovelace
+```
+
+```bash
+docker ps -a
 ```
 
 ## 6. A long-running container: a web server
@@ -262,8 +312,8 @@ docker images
 
 ```text
 IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
-alpine:3.22          062964a69725       8.54MB             0B
-my-alpine:demo       062964a69725       8.54MB             0B
+alpine:3.22          bfe7ceb9f09e       12.9MB         3.88MB
+my-alpine:demo       bfe7ceb9f09e       12.9MB         3.88MB
 ...
 ```
 
@@ -335,7 +385,7 @@ docker images
 
 ```text
 IMAGE                   ID             DISK USAGE   CONTENT SIZE   EXTRA
-hello-container:v1      4284bbcd5402       8.54MB             0B
+hello-container:v1      4284bbcd5402       12.9MB         3.88MB
 ...
 ```
 

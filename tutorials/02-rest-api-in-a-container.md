@@ -164,7 +164,7 @@ docker images
 
 ```text
 IMAGE             ID             DISK USAGE   CONTENT SIZE   EXTRA
-shopping-api:v1   a1b2c3d4e5f6        200MB             0B
+shopping-api:v1   a1b2c3d4e5f6        201MB         48.5MB
 ...
 ```
 
