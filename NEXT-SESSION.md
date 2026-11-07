@@ -7,7 +7,7 @@ Prepared after 2026-Nov-06. Start at the top.
 1. **Corrections** (~5 min) – top three from [LEARNINGS.md → 2026-Nov-06](LEARNINGS.md#2026-nov-06):
    - ARM is mainstream, not an exception (Graviton, Cobalt, Axion)
    - `docker run` does not check for a newer image
-   - `EXPOSE` publishes nothing – only `-p` does
+   - Not every Dockerfile line is a layer – only `RUN`, `COPY`, `ADD`
 2. **Homework check:** who got their own application into a container? Collect the problems, solve one or two live.
 3. **Multiple containers** (as announced):
    - Backend and frontend from [`code/`](code/) on a shared Docker network – the frontend reaches the backend by its container name.
