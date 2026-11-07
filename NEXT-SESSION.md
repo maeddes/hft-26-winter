@@ -1,32 +1,31 @@
-# Next Session: 2026-Nov-06
+# Next Session: 2026-Nov-13
 
-Prepared after 2026-Oct-30. Start at the top.
+Prepared after 2026-Nov-06. Start at the top.
 
 ## Plan
 
-1. **Corrections** (~10 min). Open in [LEARNINGS.md](LEARNINGS.md): 11 from Oct-30, 12 from Oct-23, 4 from Oct-16. Too many for one slot – suggested top five:
-   - Shipping container origin: Malcom McLean, *Ideal X*, 1956 (Oct-30)
-   - The kernel is not split up – containers are isolated processes on one kernel (Oct-30)
-   - The Apple Silicon demo: CPU architecture and multi-platform images (Oct-30)
-   - Who pays for a codespace, and closing the browser does not stop it (Oct-23, Oct-30)
-   - Kubernetes was Google's answer to AWS, not Azure (Oct-23)
-2. **Fix last week's demo live:** build the image as multi-platform (`docker buildx build --platform linux/amd64,linux/arm64 … --push`) and run it on the Mac. Shows architecture, image index and emulation.
-3. **Containers, continued** (as announced):
-   - A small REST service in a container – a long-running process instead of `cat`.
-   - Networks and volumes: connecting containers, persisting data.
-   - Docker Compose as the step towards a multi-container application.
-4. **Practical tip for the class:** `docker login` before pulling. Anonymous pulls share one limit per IP – the whole class behind the HFT network.
+1. **Corrections** (~5 min) – top three from [LEARNINGS.md → 2026-Nov-06](LEARNINGS.md#2026-nov-06):
+   - ARM is mainstream, not an exception (Graviton, Cobalt, Axion)
+   - `docker run` does not check for a newer image
+   - `EXPOSE` publishes nothing – only `-p` does
+2. **Homework check:** who got their own application into a container? Collect the problems, solve one or two live.
+3. **Multiple containers** (as announced):
+   - Backend and frontend from [`code/`](code/) on a shared Docker network – the frontend reaches the backend by its container name.
+   - Volumes: persisting data, and why the in-memory shopping list is lost.
+   - Docker Compose as the next step.
+4. **Last year's student projects and the PVL** (as announced). Hand out the PVL spreadsheet if it is ready.
 
-Announced in class: be there in person, more live hacking, possibly not everything recorded.
+Postponed twice now: the multi-platform fix (`docker buildx build --platform linux/amd64,linux/arm64 … --push`). Fits well right before the PVL – teams with Macs will need it.
 
-Still open from earlier sessions: NIST essential characteristics and deployment models, shared responsibility, price of distribution, two axes of distribution – all in [LEARNINGS.md](LEARNINGS.md). Carried over twice now: cover briefly, or drop.
+Before class: clean up `code/` (Dockerfiles into the service folders, `__pycache__` out of Git) – see LEARNINGS.
 
 ## Promised in class
 
-- [ ] Fix the multi-platform image issue ("homework until next time")
+- [ ] Upload the videos right after the lecture (a student asked twice – time zones)
+- [ ] Publish more samples in the repository (Spring Boot, Quarkus, Hono, Go, Rust were shown)
 - [ ] Spreadsheet for PVL teams and topics
 - [ ] PVL description for this semester
+- [ ] Fix the multi-platform image issue
 - [ ] Kubernetes environment for students without a capable machine
 - [ ] Find out how far the free Copilot tier gets alongside Codespaces
-- [x] Link the Docker video a student recommended – now in the README
-- [x] Docker tutorial – partly covered by the recommended video
+- [x] Upload last week's slides – done at the start of the session

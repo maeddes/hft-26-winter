@@ -257,28 +257,75 @@ By the end of this lecture, students will be able to:
 11. Why should you avoid the `latest` tag in production?
 12. Why can an image built on one machine fail to run on another machine with a different CPU architecture? How can this be solved?
 
-## Simple REST API
+## 2026-Nov-06 Docker in Practice: Images, Tags, and a REST Service in a Container
 
-The FastAPI application exposes `/hello` (which includes the server hostname),
-`/crash` (which raises a simulated server error), and CRUD endpoints for a
-shopping list. Each item has a `name` used as its ID and a non-negative integer
-`amount`. The list is held in memory and is reset when the application restarts.
+### Docker: the big picture
 
-Run it in a Codespace:
+![Docker basics overview](sketches/2026-11-06_docker-basics-overview.excalidraw.png)
 
-```bash
-python -m pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
+### Why last week's image did not run on the Mac
 
-Open port 8000 in the Codespaces Ports tab, then visit `/docs` for the
-interactive API documentation. The collection endpoints are `GET` and `POST`
-`/shopping-list`; individual items use `GET`, `PUT`, and `DELETE`
-`/shopping-list/{name}`.
+![Multi-architecture container format](sketches/2026-11-06_multi-arch-container-format.excalidraw.png)
 
-Build and run it in Docker:
+### Live demo: from a local process to two container instances
 
-```bash
-docker build -f Dockerfile-new -t shopping-list-api .
-docker run --rm -p 8000:8000 shopping-list-api
-```
+![REST API in a container with port mapping](sketches/2026-11-06_rest-api-container-port-mapping.excalidraw.png)
+
+The code from the demo is in [`code/`](code/) – see [code/README.md](code/README.md) for how to run it.
+
+### **Content Overview**
+
+**Recap: why last week's demo failed**
+   - The image was built in a codespace on `linux/amd64` and pulled on an Apple Silicon Mac (`arm64`). The container runtime abstracts the operating system, not the CPU: an image contains binaries for one architecture.
+   - Portability across architectures needs multi-platform images (one tag, one variant per architecture).
+
+**The Docker components and how they relate**
+   - **Dockerfile:** the blueprint for an image – build instructions, just text on the file system. `docker build` turns it into an image.
+   - **Image:** the blueprint for a container instance (class → object). Never running, layered, contains binaries, libraries and executables. Identified by an immutable ID; names and tags are just pointers to it – one image can have several tags (`nginx:latest`, `nginx:1`, ...).
+   - **Container:** the live instance – a process running on the CPU, using memory. Each container gets its own ID, which is also its hostname.
+   - **Registries:** `docker pull` and `docker push` move images between the local image store (`docker images`) and a remote registry such as Docker Hub. `docker run` pulls an image only if it is not available locally.
+   - Useful commands: `docker images`, `docker ps -a`, `docker logs <id>`, `docker tag`, `docker rmi` (removes a tag, or the image once no tag is left), `docker rm`.
+   - Immutability: you cannot change an image, but you can build a new image on top of it (`FROM <your-image>`).
+
+**A REST service in a container** (FastAPI shopping list, generated with Copilot)
+   - Endpoints: `/hello` (returns the hostname), `/crash` (simulated error), CRUD on `/shopping-list` – create, read, update, delete.
+   - First run locally as a plain process and test with `curl`; then containerize.
+   - Dockerfile instructions: `FROM` (base image), `WORKDIR`, `COPY` (from the build context into the image), `RUN` (execute at build time, e.g. `pip install`), `EXPOSE`, `CMD` (what `docker run` executes).
+   - The build context is the directory passed to `docker build`. `COPY` can only see files in there: `docker build -f code/Dockerfile-backend -t backend:v1 code/backend-fastapi`.
+   - Delete `main.py` locally: the local process no longer starts, the container still does – the file is part of the image.
+   - **Port mapping:** the app listens on port 8000 *inside* the container; `curl localhost:8000` fails from outside. `docker run -p 8000:8000 ...` publishes it.
+   - Two versions in parallel: `backend:v1` on port 8000 and `backend:v2` on port 8001 (`-p 8001:8000`), both listening on 8000 inside – the basis for blue/green.
+   - Other languages, same pattern: Spring Boot, Quarkus, Go and Rust use **multi-stage builds** – a build stage compiles, a slim runtime stage only gets the result (e.g. a JAR on a JRE). Running as a non-root user is good practice.
+
+### **Homework**
+
+- Put an application of your own into a container: write a Dockerfile, build an image, run it, reach it via a port mapping. Any language. Or start from the code in [`code/`](code/).
+- Stuck? Bring your problem to the next session or send it by email.
+
+---
+
+### **Learning Objectives**
+
+By the end of this lecture, students will be able to:
+- Explain the roles of Dockerfile, image, container and registry and the commands that connect them.
+- Distinguish image IDs from tags and explain why images are immutable.
+- Write a Dockerfile for a simple application and explain `FROM`, `WORKDIR`, `COPY`, `RUN`, `EXPOSE` and `CMD`.
+- Explain the build context.
+- Publish a container port with `-p` and explain why it is needed.
+- Explain why an image may not run on a different CPU architecture and how multi-platform images solve this.
+
+---
+
+### **Student/Review Questions**
+
+1. Describe the role of a Dockerfile, an image and a container in one sentence each. Which of them is running?
+2. What is the difference between an image ID and a tag? Can two tags point to the same image?
+3. What does `docker run` do if the image is not available locally? And if it is?
+4. Why does the hostname returned by an application change when you move it into a container?
+5. What is the build context of `docker build`, and why does `COPY` fail if it is wrong?
+6. What is the difference between `RUN` and `CMD` in a Dockerfile?
+7. An application listens on port 8000 in a container, but `curl localhost:8000` on the host fails. Why, and how do you fix it?
+8. How can two containers both listen on port 8000 inside and still run on the same host?
+9. You delete the source file of an application after building its image. Does the container still start? Why?
+10. What is a multi-stage build, and why is it useful for compiled languages like Java or Go?
+11. Why did an image built in a codespace fail on an Apple Silicon Mac? How can this be solved?

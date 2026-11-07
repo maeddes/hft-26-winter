@@ -5,6 +5,31 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [x] addressed in class
 - [ ] not yet addressed (or only published here)
 
+## 2026-Nov-06
+
+### Corrections
+
+- [ ] **ARM is not the exception any more:** AWS (Graviton, since 2018), Azure (Cobalt) and Google Cloud (Axion) all offer arm64 machines, often at a lower price; add Apple Silicon and Raspberry Pi. And the other side is x86-64 (`amd64`), which includes AMD, not only Intel. Most Docker Official Images are multi-platform for exactly this reason. The sketch label "ARM-based HW (exception)" should go.
+- [ ] **`docker run` does not check for a newer image:** it pulls only if the image is missing locally (`--pull=missing` is the default). An updated `latest` on Docker Hub is ignored until you run `docker pull` or `docker run --pull=always`. That is precisely why `latest` is treacherous.
+- [ ] **Not every Dockerfile line is a layer:** only instructions that change the file system (`RUN`, `COPY`, `ADD`) create layers; `CMD`, `EXPOSE`, `ENV` and the like only add metadata. Starting a temporary container per step was the legacy builder; BuildKit, the default since Docker Engine 23 (2023), works differently and can run independent steps in parallel.
+- [ ] **`EXPOSE` publishes nothing:** it is documentation in the image metadata. That is why `curl localhost:8000` failed although the Dockerfile says `EXPOSE 8000`. Only `-p` publishes a port (`-P` publishes all exposed ports to random host ports).
+- [ ] **The build context is the path you pass**, not the directory you run the command in. `-f` points to the Dockerfile independently of it. (The demo with `backend/` showed it correctly.)
+- [ ] **Local image store, not local registry:** a registry is a server (Docker Hub, GHCR, Harbor). `docker images` lists the local image store. On a Mac, `/var/lib/docker` is not missing because of permissions – it lives inside the Linux VM of Docker Desktop.
+- [ ] **The hostname demo is namespaces at work:** each container gets its own UTS namespace, so `gethostname()` returns the container ID. Better than "each container gets its own part of the operating system" – there is still one kernel.
+- [ ] **`/crash` does not crash the process:** FastAPI turns the exception into an HTTP 500 and keeps running. A real crash needs `os._exit(1)` – two lines, no Copilot needed. Combined with `docker run --restart=on-failure` it shows self-healing and leads straight to Kubernetes.
+- [ ] **"Will still run in 10 years":** it will start, but its base image gets no security fixes. Images need to be rebuilt regularly, even if the code does not change.
+- [ ] **Small details:** `docker logs` works on stopped containers too; any unique prefix of a container ID works, there is no minimum of three characters.
+
+### Ideas to go deeper
+
+- [ ] **Clean up `code/`:** the backend is built with `code/backend-fastapi` as context, the frontend with `code/` – exactly the build-context confusion from class. Moving each Dockerfile into its service folder (`code/backend-fastapi/Dockerfile`) makes it `docker build -t backend:v1 code/backend-fastapi`, like the multi-language samples shown.
+- [ ] **Remove the tracked `__pycache__/main.cpython-314.pyc`:** `.gitignore` does not affect files that are already committed – `git rm --cached -r __pycache__`.
+- [ ] **Non-root in the demo Dockerfiles:** recommended in class, but `Dockerfile-backend` and `Dockerfile-frontend` still run as root. A `USER` line would make them consistent.
+- [ ] **The frontend has `timeout=5`:** a concrete countermeasure for "the network is reliable" and "latency is zero" – worth pointing out when connecting the two containers.
+- [ ] **State per instance:** v1 and v2 each keep their own shopping list in memory. Scaling or replacing a container loses data – the bridge to stateless services, volumes and a database.
+- [ ] **Copilot acted in the background:** it built and tested the image before being asked, which is why the first `docker build` was already cached. Worth making visible to students: agent mode runs commands.
+- [ ] **Multi-platform fix still to be shown live** (postponed from Oct-30 again).
+
 ## 2026-Oct-30
 
 ### Corrections
@@ -14,9 +39,9 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [ ] **cgroups timeline:** developed at Google from 2006 under the name "process containers", merged into Linux 2.6.24 in January 2008. The building blocks were complete in 2008, not 2006. Namespaces arrived step by step from 2002 (mount) to 2013 (user namespaces).
 - [ ] **LXC (2008)** was initially developed at IBM, not Canonical; Canonical sponsored it later (LXD). Google's own tool was called *lmctfy – "Let Me Contain That For You"* (2013).
 - [ ] **Hypervisor type 1 runs directly on the hardware** ("bare metal"), not on an operating system. Type 2 runs on top of an operating system.
-- [ ] **The Apple Silicon demo:** images are built for one CPU architecture. The codespace built `linux/amd64`, the Mac is `arm64`. The "manifest" needed is an *image index* (manifest list): `docker buildx build --platform linux/amd64,linux/arm64 -t <name> --push .` builds both variants under one tag. Docker Desktop can also run amd64 images on Apple Silicon through emulation (`--platform linux/amd64`), just slower. Portability holds per architecture – a good teaching point rather than a failed demo.
+- [x] **The Apple Silicon demo:** images are built for one CPU architecture. The codespace built `linux/amd64`, the Mac is `arm64`. The "manifest" needed is an *image index* (manifest list): `docker buildx build --platform linux/amd64,linux/arm64 -t <name> --push .` builds both variants under one tag. Docker Desktop can also run amd64 images on Apple Silicon through emulation (`--platform linux/amd64`), just slower. Portability holds per architecture – a good teaching point rather than a failed demo.
 - [ ] **"One process" and "only network" are conventions, not limits:** a container can run several processes, and containers can share volumes or namespaces (in Kubernetes, containers in one pod even share localhost).
-- [ ] **`latest` is just a tag name:** the publisher decides where it points; it is not guaranteed to be the newest version. Locally it does not change until you pull again. Pinning a version is good; pinning a digest (`postgres@sha256:…`) is fully reproducible.
+- [x] **`latest` is just a tag name:** the publisher decides where it points; it is not guaranteed to be the newest version. Locally it does not change until you pull again. Pinning a version is good; pinning a digest (`postgres@sha256:…`) is fully reproducible.
 - [ ] **Closing the browser does not stop a codespace:** it keeps running until the idle timeout (default 30 minutes) and keeps consuming quota. Stop it explicitly. When it stops, processes end, but files and pulled images survive. Inactive codespaces are deleted after 30 days by default.
 - [ ] **Bitnami is no longer a safe recommendation:** since 28 Aug 2025, Broadcom no longer offers free versioned Bitnami images. Old images moved to `bitnamilegacy` and get no updates.
 - [ ] **`docker login` with a token:** use a Docker Hub Personal Access Token instead of the account password, as the CLI suggests. In a codespace the credentials end up unencrypted in `~/.docker/config.json`.
