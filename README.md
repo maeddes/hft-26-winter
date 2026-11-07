@@ -19,6 +19,13 @@ As of now, nothing is expected to change from last year:
 - Expect both reasoning questions ("why?") and practical ones, e.g. short code snippets: what do they do, how do they relate to distributed systems, what could go wrong?
 - The review questions of each session are the best preparation. Hands-on work in the PVL helps a lot with the practical questions.
 
+## Tutorials
+
+Step-by-step walkthroughs to try things yourself, one command at a time:
+
+1. [Docker Basics](tutorials/01-docker-basics.md) – pull, run, inspect, build your first image
+2. [A REST API in a Container](tutorials/02-rest-api-in-a-container.md) – from a Python process to a containerized API
+
 ## 2026-Oct-16 Kick-off: Why Distributed Systems?
 
 ### Brainstorming: Modern Software Architecture / Distributed Systems
@@ -300,6 +307,7 @@ The code from the demo is in [`code/`](code/) – see [code/README.md](code/READ
 ### **Homework**
 
 - Put an application of your own into a container: write a Dockerfile, build an image, run it, reach it via a port mapping. Any language. Or start from the code in [`code/`](code/).
+- Not sure where to start? Follow the tutorials [01 – Docker Basics](tutorials/01-docker-basics.md) and [02 – A REST API in a Container](tutorials/02-rest-api-in-a-container.md).
 - Stuck? Bring your problem to the next session or send it by email.
 
 ---
