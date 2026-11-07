@@ -2,7 +2,7 @@
 
 ## 1. About
 
-This walkthrough covers the Docker basics on the command line: pulling images, running containers, inspecting and removing them, and building a first image of your own.
+This walkthrough covers the Docker basics from the lectures on 30 Oct and 6 Nov: pulling images, running and removing containers, publishing a port, tags, and building a first image of your own.
 
 Every code block contains **exactly one command** – copy it, paste it, run it, then compare with the expected output. Outputs will differ in IDs, timestamps and versions; that is fine.
 
@@ -134,30 +134,6 @@ uname -r
 
 In a codespace both are identical: the container uses the kernel of its host – it does not bring its own. On macOS or Windows, the container shows the kernel of the small Linux VM that Docker Desktop runs in the background (e.g. `6.12.76-linuxkit`).
 
-### 4.1 Interactive container
-
-Start a shell inside a container:
-
-```bash
-docker run -it --rm alpine:3.22 sh
-```
-
-The prompt changes to `/ #`. You are now inside the container. Try:
-
-```bash
-hostname
-```
-
-```bash
-ps
-```
-
-`ps` shows only the processes of this container – starting with `sh` as process 1. Leave the container:
-
-```bash
-exit
-```
-
 ## 5. List and remove containers
 
 List running containers:
@@ -190,12 +166,6 @@ Remove one container by its ID – the first few characters are enough, as long 
 
 ```bash
 docker rm 87dd
-```
-
-Remove all stopped containers at once (confirm with `y`):
-
-```bash
-docker container prune
 ```
 
 ## 6. A long-running container: a web server
@@ -242,17 +212,6 @@ docker logs web
 ```text
 ...
 192.168.65.1 - - [07/Nov/2026:10:10:02 +0000] "GET / HTTP/1.1" 200 896 "-" "curl/8.7.1" "-"
-```
-
-Run a command inside the running container:
-
-```bash
-docker exec web ls /usr/share/nginx/html
-```
-
-```text
-50x.html
-index.html
 ```
 
 Stop the container:
@@ -390,24 +349,6 @@ docker run --rm hello-container:v1
 Hello from my first image
 ```
 
-Look at the layers of your image:
-
-```bash
-docker history hello-container:v1
-```
-
-Should display output like:
-
-```text
-IMAGE          CREATED          CREATED BY                          SIZE      COMMENT
-4284bbcd5402   1 minute ago     CMD ["cat" "/hello.txt"]            0B        buildkit.dockerfile.v0
-<missing>      1 minute ago     COPY hello.txt /hello.txt # build…  26B       buildkit.dockerfile.v0
-<missing>      3 weeks ago      CMD ["/bin/sh"]                     0B
-<missing>      3 weeks ago      ADD alpine-minirootfs-3.22.8-…      8.5MB
-```
-
-Read it bottom-up: the Alpine layers, then your `COPY` layer with just a few bytes. `CMD` adds no files, only metadata (0B).
-
 ## 9. Images are immutable – build a new version
 
 Change the text file:
@@ -446,53 +387,30 @@ docker images
 
 `v1` and `v2` have different IDs. They share the Alpine layers – those are stored only once.
 
-## 10. Changes inside a container stay in that container
+## 10. Share your image (optional)
 
-Start a container with a shell and keep it after it exits (no `--rm` this time):
-
-```bash
-docker run -it --name playground hello-container:v2 sh
-```
-
-Inside the container, change the file:
+This needs a free Docker ID from [hub.docker.com](https://hub.docker.com). Log in – the CLI suggests using a Personal Access Token instead of your password:
 
 ```bash
-echo "changed inside the container" > /hello.txt
+docker login -u <your-docker-id>
 ```
+
+Give the image a name that starts with your Docker ID:
 
 ```bash
-cat /hello.txt
+docker tag hello-container:v2 <your-docker-id>/hello-container:v2
 ```
+
+Push it to Docker Hub:
 
 ```bash
-exit
+docker push <your-docker-id>/hello-container:v2
 ```
 
-Ask Docker what has changed in this container compared to its image:
+Anyone can now run your image – on a machine with the same CPU architecture:
 
 ```bash
-docker diff playground
-```
-
-```text
-C /hello.txt
-...
-```
-
-`C` stands for *changed*. Now start a fresh container from the same image:
-
-```bash
-docker run --rm hello-container:v2
-```
-
-```text
-Hello from version 2
-```
-
-The change only exists in the writable layer of the container `playground` – the image is untouched. Remove the container:
-
-```bash
-docker rm playground
+docker run --rm <your-docker-id>/hello-container:v2
 ```
 
 ## 11. Clean up
@@ -509,18 +427,6 @@ Remove your images:
 docker rmi hello-container:v1 hello-container:v2
 ```
 
-Remove all stopped containers:
-
-```bash
-docker container prune
-```
-
-See how much space Docker uses:
-
-```bash
-docker system df
-```
-
 ## 12. Overview
 
 | Command | What it does |
@@ -529,15 +435,13 @@ docker system df
 | `docker pull <image>:<tag>` | downloads an image from a registry |
 | `docker images` | lists images in the local image store |
 | `docker run <image>` | creates and starts a container (pulls the image if it is missing) |
-| `docker run --rm` / `-d` / `-it` / `-p` / `--name` | remove on exit / background / interactive / publish a port / name it |
+| `docker run --rm` / `-d` / `-p` / `--name` | remove on exit / background / publish a port / name it |
 | `docker ps` / `docker ps -a` | lists running / all containers |
 | `docker logs <container>` | shows the output of a container |
-| `docker exec <container> <command>` | runs a command in a running container |
 | `docker stop` / `docker start` / `docker rm` | stops / starts / removes a container |
 | `docker tag <image> <new-name>` | adds a name to an image |
 | `docker rmi <image>` | removes a name, and the image once no name is left |
 | `docker build -t <name>:<tag> <context>` | builds an image from a Dockerfile |
-| `docker history <image>` | shows the layers of an image |
-| `docker diff <container>` | shows what changed in a container |
+| `docker login` / `docker push <image>` | logs in to a registry / uploads an image |
 
-Next: [02 – A REST API in a container](02-rest-api-in-a-container.md)
+Next: [02 – A REST API in a Container](02-rest-api-in-a-container.md) · [03 – Looking Inside Containers](03-looking-inside-containers.md)

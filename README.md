@@ -25,6 +25,7 @@ Step-by-step walkthroughs to try things yourself, one command at a time:
 
 1. [Docker Basics](tutorials/01-docker-basics.md) – pull, run, inspect, build your first image
 2. [A REST API in a Container](tutorials/02-rest-api-in-a-container.md) – from a Python process to a containerized API
+3. [Looking Inside Containers](tutorials/03-looking-inside-containers.md) – interactive shells, `docker exec`, the writable layer, `docker commit` vs. Dockerfile
 
 ## 2026-Oct-16 Kick-off: Why Distributed Systems?
 
