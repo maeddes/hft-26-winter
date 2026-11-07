@@ -36,11 +36,12 @@ cat /etc/os-release
 ps
 ```
 
-```text
-PID   USER     TIME  COMMAND
-    1 root      0:00 sh
-    7 root      0:00 ps
-```
+> **Output**
+> ```text
+> PID   USER     TIME  COMMAND
+>     1 root      0:00 sh
+>     7 root      0:00 ps
+> ```
 
 The container sees only its own processes, and the shell you started is process 1. Leave the container:
 
@@ -62,11 +63,12 @@ docker run -d --name web -p 8080:80 nginx:1.29-alpine
 curl localhost:8080
 ```
 
-```text
-...
-<title>Welcome to nginx!</title>
-...
-```
+> **Output**
+> ```text
+> ...
+> <title>Welcome to nginx!</title>
+> ...
+> ```
 
 Run a single command in the running container:
 
@@ -74,10 +76,11 @@ Run a single command in the running container:
 docker exec web ls /usr/share/nginx/html
 ```
 
-```text
-50x.html
-index.html
-```
+> **Output**
+> ```text
+> 50x.html
+> index.html
+> ```
 
 Show its processes:
 
@@ -85,12 +88,13 @@ Show its processes:
 docker exec web ps
 ```
 
-```text
-PID   USER     TIME  COMMAND
-    1 root      0:00 nginx: master process nginx -g daemon off;
-   30 nginx     0:00 nginx: worker process
-   ...
-```
+> **Output**
+> ```text
+> PID   USER     TIME  COMMAND
+>     1 root      0:00 nginx: master process nginx -g daemon off;
+>    30 nginx     0:00 nginx: worker process
+>    ...
+> ```
 
 This time, process 1 is nginx – the command from the image. `docker exec` starts an *additional* process in the same container.
 
@@ -116,9 +120,10 @@ Leaving the shell does not stop the container – nginx is still process 1. Call
 curl localhost:8080
 ```
 
-```text
-<h1>Changed inside the container</h1>
-```
+> **Output**
+> ```text
+> <h1>Changed inside the container</h1>
+> ```
 
 ## 4. Where did the change go?
 
@@ -130,14 +135,15 @@ docker diff web
 
 Should display output like:
 
-```text
-C /usr
-C /usr/share
-C /usr/share/nginx
-C /usr/share/nginx/html
-C /usr/share/nginx/html/index.html
-...
-```
+> **Output**
+> ```text
+> C /usr
+> C /usr/share
+> C /usr/share/nginx
+> C /usr/share/nginx/html
+> C /usr/share/nginx/html/index.html
+> ...
+> ```
 
 `C` means *changed*, `A` *added*, `D` *deleted*. The changes live in the **writable layer** of this one container. Start a second container from the same image:
 
@@ -149,11 +155,12 @@ docker run -d --name web2 -p 8081:80 nginx:1.29-alpine
 curl localhost:8081
 ```
 
-```text
-...
-<title>Welcome to nginx!</title>
-...
-```
+> **Output**
+> ```text
+> ...
+> <title>Welcome to nginx!</title>
+> ...
+> ```
 
 The original page: the image is untouched.
 
@@ -175,9 +182,10 @@ docker run -d --name web3 -p 8082:80 my-nginx:changed
 curl localhost:8082
 ```
 
-```text
-<h1>Changed inside the container</h1>
-```
+> **Output**
+> ```text
+> <h1>Changed inside the container</h1>
+> ```
 
 It works – but look at the history of that image:
 
@@ -185,12 +193,13 @@ It works – but look at the history of that image:
 docker history my-nginx:changed
 ```
 
-```text
-IMAGE          CREATED          CREATED BY                                      SIZE      COMMENT
-5c1e9a7b3d2f   1 minute ago     nginx -g daemon off;                            1.2kB
-<missing>      3 weeks ago      CMD ["nginx" "-g" "daemon off;"]                0B        buildkit.dockerfile.v0
-...
-```
+> **Output**
+> ```text
+> IMAGE          CREATED          CREATED BY                                      SIZE      COMMENT
+> 5c1e9a7b3d2f   1 minute ago     nginx -g daemon off;                            1.2kB
+> <missing>      3 weeks ago      CMD ["nginx" "-g" "daemon off;"]                0B        buildkit.dockerfile.v0
+> ...
+> ```
 
 The top layer says nothing about *what* was changed or *how*. Nobody can rebuild this image, and nobody can review it. That is the reproducibility problem again – this time inside Docker.
 
@@ -239,9 +248,10 @@ docker run -d --name web4 -p 8083:80 my-nginx:v1
 curl localhost:8083
 ```
 
-```text
-<h1>Built from a Dockerfile</h1>
-```
+> **Output**
+> ```text
+> <h1>Built from a Dockerfile</h1>
+> ```
 
 Compare the history:
 
@@ -249,12 +259,13 @@ Compare the history:
 docker history my-nginx:v1
 ```
 
-```text
-IMAGE          CREATED          CREATED BY                                      SIZE      COMMENT
-8d2f4a6c1b3e   1 minute ago     COPY index.html /usr/share/nginx/html/index…   33B       buildkit.dockerfile.v0
-<missing>      3 weeks ago      CMD ["nginx" "-g" "daemon off;"]                0B        buildkit.dockerfile.v0
-...
-```
+> **Output**
+> ```text
+> IMAGE          CREATED          CREATED BY                                      SIZE      COMMENT
+> 8d2f4a6c1b3e   1 minute ago     COPY index.html /usr/share/nginx/html/index…   33B       buildkit.dockerfile.v0
+> <missing>      3 weeks ago      CMD ["nginx" "-g" "daemon off;"]                0B        buildkit.dockerfile.v0
+> ...
+> ```
 
 Read it bottom-up: the nginx layers, then exactly one layer of yours – and it says what it does. The Dockerfile documents how the image came about, and anyone can rebuild it.
 
@@ -296,13 +307,14 @@ See how much space Docker uses:
 docker system df
 ```
 
-```text
-TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
-Images          5         0         1.2GB     1.2GB (100%)
-Containers      0         0         0B        0B
-Local Volumes   0         0         0B        0B
-Build Cache     12        0         45MB      45MB
-```
+> **Output**
+> ```text
+> TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+> Images          5         0         1.2GB     1.2GB (100%)
+> Containers      0         0         0B        0B
+> Local Volumes   0         0         0B        0B
+> Build Cache     12        0         45MB      45MB
+> ```
 
 ## 8. Overview
 

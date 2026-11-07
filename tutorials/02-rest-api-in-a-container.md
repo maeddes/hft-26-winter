@@ -92,12 +92,13 @@ Start the app:
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-```text
-INFO:     Started server process [12345]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-```
+> **Output**
+> ```text
+> INFO:     Started server process [12345]
+> INFO:     Waiting for application startup.
+> INFO:     Application startup complete.
+> INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+> ```
 
 The app is now waiting for requests and blocks this terminal. Open a **second terminal** and call it:
 
@@ -105,9 +106,10 @@ The app is now waiting for requests and blocks this terminal. Open a **second te
 curl localhost:8000/hello
 ```
 
-```text
-{"message":"Hello!","hostname":"codespaces-6542bf"}
-```
+> **Output**
+> ```text
+> {"message":"Hello!","hostname":"codespaces-6542bf"}
+> ```
 
 Compare the hostname with the name of your machine:
 
@@ -162,11 +164,12 @@ The first build takes a moment: Docker downloads the Python base image and insta
 docker images
 ```
 
-```text
-IMAGE             ID             DISK USAGE   CONTENT SIZE   EXTRA
-shopping-api:v1   a1b2c3d4e5f6        201MB         48.5MB
-...
-```
+> **Output**
+> ```text
+> IMAGE             ID             DISK USAGE   CONTENT SIZE   EXTRA
+> shopping-api:v1   a1b2c3d4e5f6        201MB         48.5MB
+> ...
+> ```
 
 ## 5. Why `curl` fails at first
 
@@ -180,10 +183,11 @@ docker run -d --name api-v1 shopping-api:v1
 docker ps
 ```
 
-```text
-CONTAINER ID   IMAGE             COMMAND                  CREATED         STATUS         PORTS      NAMES
-db6f5a3c1e2b   shopping-api:v1   "uvicorn main:app --…"   5 seconds ago   Up 4 seconds   8000/tcp   api-v1
-```
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE             COMMAND                  CREATED         STATUS         PORTS      NAMES
+> db6f5a3c1e2b   shopping-api:v1   "uvicorn main:app --…"   5 seconds ago   Up 4 seconds   8000/tcp   api-v1
+> ```
 
 The container runs and the app listens on port 8000. Call it:
 
@@ -191,9 +195,10 @@ The container runs and the app listens on port 8000. Call it:
 curl localhost:8000/hello
 ```
 
-```text
-curl: (7) Failed to connect to localhost port 8000 after 0 ms: Couldn't connect to server
-```
+> **Output**
+> ```text
+> curl: (7) Failed to connect to localhost port 8000 after 0 ms: Couldn't connect to server
+> ```
 
 The app listens on port 8000 **inside the container**. The container is isolated – nothing from outside reaches it. The `PORTS` column shows `8000/tcp` without an arrow: the port is exposed, but not published.
 
@@ -213,9 +218,10 @@ docker run -d --name api-v1 -p 8000:8000 shopping-api:v1
 curl localhost:8000/hello
 ```
 
-```text
-{"message":"Hello!","hostname":"db6f5a3c1e2b"}
-```
+> **Output**
+> ```text
+> {"message":"Hello!","hostname":"db6f5a3c1e2b"}
+> ```
 
 Look at the hostname – it changed. Compare it with the container ID:
 
@@ -223,10 +229,11 @@ Look at the hostname – it changed. Compare it with the container ID:
 docker ps
 ```
 
-```text
-CONTAINER ID   IMAGE             COMMAND                  CREATED         STATUS         PORTS                                         NAMES
-db6f5a3c1e2b   shopping-api:v1   "uvicorn main:app --…"   5 seconds ago   Up 4 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   api-v1
-```
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE             COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+> db6f5a3c1e2b   shopping-api:v1   "uvicorn main:app --…"   5 seconds ago   Up 4 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   api-v1
+> ```
 
 The hostname is the container ID: each container gets its own hostname, as if it were a machine of its own.
 
@@ -248,9 +255,10 @@ docker restart api-v1
 curl localhost:8000/hello
 ```
 
-```text
-{"message":"Hello!","hostname":"db6f5a3c1e2b"}
-```
+> **Output**
+> ```text
+> {"message":"Hello!","hostname":"db6f5a3c1e2b"}
+> ```
 
 Still working: `COPY` put the file into the image at build time. The image does not point to your directory. Rebuilding would fail now – try it:
 
@@ -258,9 +266,10 @@ Still working: `COPY` put the file into the image at build time. The image does 
 docker build -t shopping-api:broken .
 ```
 
-```text
-ERROR: failed to build: ... "/main.py": not found
-```
+> **Output**
+> ```text
+> ERROR: failed to build: ... "/main.py": not found
+> ```
 
 Restore the file:
 
@@ -292,17 +301,19 @@ Call both versions:
 curl localhost:8000/hello
 ```
 
-```text
-{"message":"Hello!","hostname":"db6f5a3c1e2b"}
-```
+> **Output**
+> ```text
+> {"message":"Hello!","hostname":"db6f5a3c1e2b"}
+> ```
 
 ```bash
 curl localhost:8001/hello
 ```
 
-```text
-{"message":"Good morning!","hostname":"8c1d2e3f4a5b"}
-```
+> **Output**
+> ```text
+> {"message":"Good morning!","hostname":"8c1d2e3f4a5b"}
+> ```
 
 Two containers, two versions, both listening on port 8000 inside – no conflict, because they are published on different ports. This is the basis for a blue/green update: start the new version next to the old one, test it, then switch.
 
@@ -401,9 +412,10 @@ The list is empty:
 curl localhost:8000/shopping-list
 ```
 
-```text
-[]
-```
+> **Output**
+> ```text
+> []
+> ```
 
 Add three apples:
 
@@ -411,9 +423,10 @@ Add three apples:
 curl -X POST localhost:8000/shopping-list -H "Content-Type: application/json" -d '{"name": "apples", "amount": 3}'
 ```
 
-```text
-{"name":"apples","amount":3}
-```
+> **Output**
+> ```text
+> {"name":"apples","amount":3}
+> ```
 
 Add five bananas:
 
@@ -427,9 +440,10 @@ List everything:
 curl localhost:8000/shopping-list
 ```
 
-```text
-[{"name":"apples","amount":3},{"name":"bananas","amount":5}]
-```
+> **Output**
+> ```text
+> [{"name":"apples","amount":3},{"name":"bananas","amount":5}]
+> ```
 
 Change the apples to six:
 
@@ -443,9 +457,10 @@ Delete the bananas and show the HTTP status code:
 curl -X DELETE localhost:8000/shopping-list/bananas -w "%{http_code}\n"
 ```
 
-```text
-204
-```
+> **Output**
+> ```text
+> 204
+> ```
 
 Ask for the bananas again:
 
@@ -453,9 +468,10 @@ Ask for the bananas again:
 curl localhost:8000/shopping-list/bananas
 ```
 
-```text
-{"detail":"Item not found"}
-```
+> **Output**
+> ```text
+> {"detail":"Item not found"}
+> ```
 
 Try to add the apples a second time:
 
@@ -463,9 +479,10 @@ Try to add the apples a second time:
 curl -X POST localhost:8000/shopping-list -H "Content-Type: application/json" -d '{"name": "apples", "amount": 1}'
 ```
 
-```text
-{"detail":"Item already exists"}
-```
+> **Output**
+> ```text
+> {"detail":"Item already exists"}
+> ```
 
 FastAPI also generates interactive documentation. In a codespace, open the **Ports** tab, open port 8000 in the browser and add `/docs` to the URL.
 
@@ -481,9 +498,10 @@ docker restart api-v3
 curl localhost:8000/shopping-list
 ```
 
-```text
-[]
-```
+> **Output**
+> ```text
+> []
+> ```
 
 The list is empty again: it was only held in the memory of the process. Version 2 on port 8001 never had a list at all:
 
@@ -491,9 +509,10 @@ The list is empty again: it was only held in the memory of the process. Version 
 curl localhost:8001/shopping-list
 ```
 
-```text
-{"detail":"Not Found"}
-```
+> **Output**
+> ```text
+> {"detail":"Not Found"}
+> ```
 
 Every instance has its own state. If you scale an application to several containers or replace a container, that state is lost. Keeping data beyond the life of a container needs a volume or a database – that is the next step.
 
@@ -505,11 +524,12 @@ Call the crash endpoint and show the HTTP status:
 curl -i localhost:8000/crash
 ```
 
-```text
-HTTP/1.1 500 Internal Server Error
-...
-Internal Server Error
-```
+> **Output**
+> ```text
+> HTTP/1.1 500 Internal Server Error
+> ...
+> Internal Server Error
+> ```
 
 Is the container still running?
 
@@ -523,10 +543,11 @@ Yes – FastAPI turns the error into an HTTP 500 response, and the process keeps
 docker logs api-v3
 ```
 
-```text
-...
-RuntimeError: Simulated application error
-```
+> **Output**
+> ```text
+> ...
+> RuntimeError: Simulated application error
+> ```
 
 ## 12. Clean up
 
