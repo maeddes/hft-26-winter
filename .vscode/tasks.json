@@ -1,0 +1,71 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend: install requirements",
+      "type": "shell",
+      "command": "pip install -r requirements.txt",
+      "options": { "cwd": "${workspaceFolder}/code/backend-fastapi" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: run locally (port 8000)",
+      "type": "shell",
+      "command": "uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+      "options": { "cwd": "${workspaceFolder}/code/backend-fastapi" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend: install requirements",
+      "type": "shell",
+      "command": "pip install -r requirements.txt",
+      "options": { "cwd": "${workspaceFolder}/code/frontend-flask" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend: run locally (port 5000)",
+      "type": "shell",
+      "command": "BACKEND_URL=http://127.0.0.1:8000 python app.py",
+      "options": { "cwd": "${workspaceFolder}/code/frontend-flask" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: build image",
+      "type": "shell",
+      "command": "docker build -f code/Dockerfile-backend -t shopping-list-backend code/backend-fastapi",
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend: build image",
+      "type": "shell",
+      "command": "docker build -f code/Dockerfile-frontend -t shopping-list-frontend code",
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: run container (port 8000)",
+      "type": "shell",
+      "command": "docker run --rm --name shopping-backend -p 8000:8000 shopping-list-backend",
+      "problemMatcher": []
+    },
+    {
+      "label": "Demo: backend + frontend on a Docker network",
+      "type": "shell",
+      "command": "docker network create shopping-demo 2>/dev/null; docker run -d --name shopping-backend --network shopping-demo shopping-list-backend && docker run --rm --name shopping-frontend --network shopping-demo -e BACKEND_URL=http://shopping-backend:8000 -p 5000:5000 shopping-list-frontend",
+      "dependsOn": ["Backend: build image", "Frontend: build image"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Demo: clean up containers and network",
+      "type": "shell",
+      "command": "docker rm -f shopping-backend shopping-frontend; docker network rm shopping-demo",
+      "problemMatcher": []
+    },
+    {
+      "label": "Smoke test: backend API on port 8000",
+      "type": "shell",
+      "command": "curl -sf localhost:8000/hello && echo && curl -sf -X POST localhost:8000/shopping-list -H 'Content-Type: application/json' -d '{\"name\": \"smoke-test\", \"amount\": 1}' && echo && curl -sf localhost:8000/shopping-list && echo && curl -sf -X DELETE localhost:8000/shopping-list/smoke-test && echo 'Smoke test passed'",
+      "problemMatcher": []
+    }
+  ]
+}
