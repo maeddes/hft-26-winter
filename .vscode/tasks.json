@@ -32,13 +32,13 @@
     {
       "label": "Backend: build image",
       "type": "shell",
-      "command": "docker build -f code/Dockerfile-backend -t shopping-list-backend code/backend-fastapi",
+      "command": "docker build -t shopping-list-backend code/backend-fastapi",
       "problemMatcher": []
     },
     {
       "label": "Frontend: build image",
       "type": "shell",
-      "command": "docker build -f code/Dockerfile-frontend -t shopping-list-frontend code",
+      "command": "docker build -t shopping-list-frontend code/frontend-flask",
       "problemMatcher": []
     },
     {

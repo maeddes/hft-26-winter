@@ -2,7 +2,8 @@
 ## Simple REST API
 
 The FastAPI application exposes `/hello` (which includes the server hostname),
-`/crash` (which raises a simulated server error), and CRUD endpoints for a
+`/crash` (which raises a simulated server error), `/kill` (which ends the
+process with exit code 1), and CRUD endpoints for a
 shopping list. Each item has a `name` used as its ID and a non-negative integer
 `amount`. The list is held in memory and is reset when the application restarts.
 
@@ -30,16 +31,35 @@ Open port 5000 in the Codespaces Ports tab. Set `BACKEND_URL` to the backend's
 reachable URL if it is running elsewhere.
 
 To run both services as containers, run these commands from the repository root
-to build and start them on a shared Docker network:
+to build and start them on a shared Docker network. Each service folder has its
+own `Dockerfile`, and the folder is the build context:
 
 ```bash
 docker network create shopping-demo
-docker build -f code/Dockerfile-backend -t shopping-list-backend code/backend-fastapi
+docker build -t shopping-list-backend code/backend-fastapi
 docker run -d --name shopping-backend --network shopping-demo shopping-list-backend
-docker build -f code/Dockerfile-frontend -t shopping-list-frontend code
+docker build -t shopping-list-frontend code/frontend-flask
 docker run --rm --name shopping-frontend --network shopping-demo \
   -e BACKEND_URL=http://shopping-backend:8000 -p 5000:5000 shopping-list-frontend
 ```
 
 Open port 5000 for the web UI. The UI supports adding, updating, and deleting
 items, and its “Check backend” link displays the backend hostname.
+
+## Build context demo
+
+The files `Dockerfile-backend`, `Dockerfile-frontend` and `Dockerfile-simple` in
+this folder show that the Dockerfile and the build context are independent:
+`-f` names the Dockerfile, the last argument is the context, and `COPY` only
+sees files inside the context.
+
+```bash
+docker build -f code/Dockerfile-backend -t shopping-list-backend code/backend-fastapi
+docker build -f code/Dockerfile-frontend -t shopping-list-frontend code
+docker build -f code/Dockerfile-simple -t hello-simple code
+```
+
+The backend variant uses the service folder as context; the frontend variant
+uses `code/` and therefore needs `COPY frontend-flask/...`. Compare it with
+`frontend-flask/Dockerfile`. For everyday use, prefer the `Dockerfile` inside
+each service folder.
