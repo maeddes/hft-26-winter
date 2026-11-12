@@ -46,6 +46,25 @@ docker run --rm --name shopping-frontend --network shopping-demo \
 Open port 5000 for the web UI. The UI supports adding, updating, and deleting
 items, and its “Check backend” link displays the backend hostname.
 
+## Docker Compose
+
+From this folder, `compose.yaml` starts the same setup with one command –
+backend and frontend on a shared network, only the frontend published:
+
+```bash
+docker compose up -d
+```
+
+`compose-lb.yaml` puts a Traefik load balancer between the frontend and two
+backend instances (proxy on port 8000, dashboard on port 8080):
+
+```bash
+docker compose -f compose-lb.yaml up -d --scale backend=3
+```
+
+Both use the project name `shopping`. Stop with `docker compose down` (add
+`-f compose-lb.yaml` for the second file).
+
 ## Build context demo
 
 The files `Dockerfile-backend` and `Dockerfile-frontend` in this folder show that the Dockerfile and the build context are independent:

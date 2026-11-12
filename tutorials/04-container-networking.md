@@ -1,41 +1,421 @@
-# Container Networking – Who Can Reach Whom?
+# Container Networking – Connecting Frontend and Backend
 
 ## 1. About
 
-`localhost`, container names, IP addresses, published ports – which address works from where? In this walkthrough you call the same REST service from different places: from your machine, from inside the container, from a second container on the default network, and from containers on a network of your own.
+The shopping list in [`code/`](../code/) has two parts: a REST **backend** (FastAPI) and a web **frontend** (Flask) that calls the backend. In this walkthrough you run both in containers – and find out why they cannot talk to each other at first, how a Docker network changes that, and why the backend does not need a published port at the end. A third container with network tools helps you look around.
+
+At the end you have two connected containers and the shopping list in your browser. [06 – Docker Compose](06-docker-compose.md) builds exactly this setup again, with one file.
 
 Every code block contains **exactly one command**. Some commands run *inside* a container – this is marked in the text.
 
 ### 1.1 Prerequisites
 
-- [02 – A REST API in a Container](02-rest-api-in-a-container.md) – you need the `shopping-api` folder from there
-- [03 – Looking Inside Containers](03-looking-inside-containers.md) – `docker exec` and `docker run -it`
-- A GitHub Codespace is recommended. Some results differ on macOS and Windows – this is marked where it matters.
+- [02 – A REST API in a Container](02-rest-api-in-a-container.md) and [03 – Looking Inside Containers](03-looking-inside-containers.md)
+- A GitHub Codespace on this repository. Run all commands from the **repository root**, where the `code/` folder is.
 
-## 2. Prepare the image
+> **On a Mac:** port 5000 is often taken by the AirPlay Receiver. If `-p 5000:5000` fails with "address already in use", use `-p 5001:5000` and `localhost:5001` instead.
 
-Change into the folder from tutorial 02:
+## 2. Build the two images
 
-```bash
-cd shopping-api
-```
-
-Build the image (it was removed at the end of tutorial 02):
+Each service folder contains its own `Dockerfile`, so the folder is the build context:
 
 ```bash
-docker build -t shopping-api:v3 .
+docker build -t shopping-backend code/backend-fastapi
 ```
 
 ```bash
-cd ..
+docker build -t shopping-frontend code/frontend-flask
 ```
 
-## 3. From your machine
+```bash
+docker images
+```
 
-Start the API in the background – **without** publishing a port:
+## 3. Start them separately
+
+Start the backend and publish its port:
 
 ```bash
-docker run -d --name api-a shopping-api:v3
+docker run -d --name backend -p 8000:8000 shopping-backend
+```
+
+```bash
+curl localhost:8000/hello
+```
+
+> **Output**
+> ```text
+> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> ```
+
+Start the frontend. It needs to know where the backend is – the environment variable `BACKEND_URL` tells it:
+
+```bash
+docker run -d --name frontend -p 5000:5000 -e BACKEND_URL=http://backend:8000 shopping-frontend
+```
+
+Open port 5000 in the **Ports** tab of your codespace. The page loads – but shows an error. On the command line:
+
+```bash
+curl -s localhost:5000 | grep -o "Could not reach backend[^<]*"
+```
+
+> **Output**
+> ```text
+> Could not reach backend at http://backend:8000: HTTPConnectionPool(host=&#39;backend&#39;, port=8000): ... Failed to resolve &#39;backend&#39; ([Errno -2] Name or service not known)
+> ```
+
+Both containers are running, both are reachable from your machine – but the frontend cannot find a host called `backend`. Let's look from the inside.
+
+## 4. Inside the backend
+
+Open a shell in the backend container:
+
+```bash
+docker exec -it backend sh
+```
+
+**Inside the container**, try `curl`:
+
+```bash
+curl localhost:8000/hello
+```
+
+> **Output**
+> ```text
+> sh: 1: curl: not found
+> ```
+
+The image is based on `python:3.12-slim` – a *slim* image contains only what the app needs. Which tools are there?
+
+```bash
+for t in curl nc ping getent python; do command -v $t || echo "$t: not found"; done
+```
+
+> **Output**
+> ```text
+> curl: not found
+> nc: not found
+> ping: not found
+> /usr/bin/getent
+> /usr/local/bin/python
+> ```
+
+No `curl`, no netcat, no `ping`. But Python is there – use it as an HTTP client:
+
+```bash
+python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/hello').read().decode())"
+```
+
+> **Output**
+> ```text
+> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> ```
+
+Inside the container, `localhost` is the container itself – the app answers on port 8000 without any port mapping. Leave the container:
+
+```bash
+exit
+```
+
+## 5. Inside the frontend
+
+Open a shell in the frontend container:
+
+```bash
+docker exec -it frontend sh
+```
+
+**Inside the container**, check the hostname:
+
+```bash
+hostname
+```
+
+> **Output**
+> ```text
+> c248b04ebe93
+> ```
+
+The container ID, as you know from tutorial 02. Can this container resolve the name `backend`?
+
+```bash
+getent hosts backend
+```
+
+No output: the name is unknown. The frontend's own HTTP library says the same:
+
+```bash
+python -c "import requests; print(requests.get('http://backend:8000/hello', timeout=3).text)"
+```
+
+> **Output**
+> ```text
+> ...
+> requests.exceptions.ConnectionError: ... Failed to resolve 'backend' ([Errno -2] Name or service not known)
+> ```
+
+Leave the container:
+
+```bash
+exit
+```
+
+### 5.1 A toolbox container
+
+Both images are *slim* – no `ping`, no `nslookup`, no netcat. That is a good thing: an application image should contain the application, not a debugging kit. Instead of installing tools into the frontend, start a **third container** whose only job is to bring those tools along: [`nicolaka/netshoot`](https://github.com/nicolaka/netshoot), a popular image for network troubleshooting.
+
+```bash
+docker run -it --rm --name toolbox nicolaka/netshoot:v0.14
+```
+
+The prompt changes – you are inside the toolbox. It is on the default network, like the other two. **Inside the toolbox**, look up the backend:
+
+```bash
+nslookup backend
+```
+
+> **Output**
+> ```text
+> ** server can't find backend: NXDOMAIN
+> ```
+
+```bash
+ping -c 2 backend
+```
+
+> **Output**
+> ```text
+> ping: backend: Name does not resolve
+> ```
+
+The same result as from the frontend: on Docker's **default network**, containers cannot find each other by name. Leave the toolbox – thanks to `--rm` it is removed:
+
+```bash
+exit
+```
+
+## 6. A network for both
+
+Create a network:
+
+```bash
+docker network create shop-net
+```
+
+Connect both running containers to it – no restart needed:
+
+```bash
+docker network connect shop-net backend
+```
+
+```bash
+docker network connect shop-net frontend
+```
+
+Who is in the network, with which address?
+
+```bash
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+> **Output**
+> ```text
+> backend 172.27.0.2/16
+> frontend 172.27.0.3/16
+> ```
+
+And from the point of view of one container – which networks is it in?
+
+```bash
+docker container inspect frontend --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{$net.IPAddress}}{{println}}{{end}}'
+```
+
+> **Output**
+> ```text
+> bridge 172.17.0.3
+> shop-net 172.27.0.3
+> ```
+
+The frontend is now in two networks: the default `bridge` and `shop-net`. (Without `--format`, both `inspect` commands print everything Docker knows about the network or the container – try it.)
+
+Reload the page in your browser – the error is gone. On the command line, ask the frontend which backend answered:
+
+```bash
+curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
+```
+
+> **Output**
+> ```text
+> Server: <strong>154ad27de4e1
+> ```
+
+The hostname of the backend container: the frontend reached it through `shop-net`.
+
+## 7. From one container to the other
+
+Start the toolbox again – this time directly in `shop-net`:
+
+```bash
+docker run -it --rm --name toolbox --network shop-net nicolaka/netshoot:v0.14
+```
+
+**Inside the toolbox**, look up the backend:
+
+```bash
+nslookup backend
+```
+
+> **Output**
+> ```text
+> Server:		127.0.0.11
+> Address:	127.0.0.11#53
+>
+> Non-authoritative answer:
+> Name:	backend
+> Address: 172.27.0.2
+> ```
+
+In a network of your own, Docker runs a DNS server at `127.0.0.11`: container names become hostnames. The frontend is there, too:
+
+```bash
+nslookup frontend
+```
+
+```bash
+ping -c 2 backend
+```
+
+> **Output**
+> ```text
+> PING backend (172.27.0.2) 56(84) bytes of data.
+> 64 bytes from backend.shop-net (172.27.0.2): icmp_seq=1 ttl=64 time=0.434 ms
+> 64 bytes from backend.shop-net (172.27.0.2): icmp_seq=2 ttl=64 time=0.130 ms
+> ...
+> ```
+
+Call the backend's REST API:
+
+```bash
+curl backend:8000/hello
+```
+
+> **Output**
+> ```text
+> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> ```
+
+Check only whether a port is open, with netcat – the backend on 8000, the frontend on 5000:
+
+```bash
+nc -zv backend 8000
+```
+
+> **Output**
+> ```text
+> Connection to backend (172.27.0.2) 8000 port [tcp/*] succeeded!
+> ```
+
+```bash
+nc -zv frontend 5000
+```
+
+Or send an HTTP request by hand – netcat opens the connection, you write the request yourself:
+
+```bash
+printf "GET /hello HTTP/1.0\r\n\r\n" | nc -w 3 backend 8000
+```
+
+> **Output**
+> ```text
+> HTTP/1.1 200 OK
+> date: Thu, 12 Nov 2026 21:01:07 GMT
+> server: uvicorn
+> content-length: 53
+> content-type: application/json
+> Connection: close
+>
+> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> ```
+
+That is all an HTTP request is: a few lines of text over a TCP connection.
+
+Leave the toolbox open, and in a **second terminal** look at the network – the toolbox shows up as a third member:
+
+```bash
+docker network inspect shop-net --format "{{{{range .Containers}}}}{{{{.Name}}}} {{{{.IPv4Address}}}}{{{{println}}}}{{{{end}}}}"
+```
+
+> **Output**
+> ```text
+> backend 172.27.0.2/16
+> frontend 172.27.0.3/16
+> toolbox 172.27.0.4/16
+> ```
+
+Back in the first terminal, leave the toolbox:
+
+```bash
+exit
+```
+
+### 7.1 Between frontend and backend
+
+The toolbox is only for looking around – frontend and backend talk to each other directly. Check it with the tools they have: from the frontend to the backend …
+
+```bash
+docker exec frontend python -c "import requests; print(requests.get('http://backend:8000/hello', timeout=3).text)"
+```
+
+> **Output**
+> ```text
+> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> ```
+
+… and the other way round. Open a shell in the backend:
+
+```bash
+docker exec -it backend sh
+```
+
+**Inside the container**:
+
+```bash
+getent hosts frontend
+```
+
+> **Output**
+> ```text
+> 172.27.0.3      frontend
+> ```
+
+```bash
+python -c "import urllib.request; print(urllib.request.urlopen('http://frontend:5000').status)"
+```
+
+> **Output**
+> ```text
+> 200
+> ```
+
+The backend reaches the frontend by name, too.
+
+```bash
+exit
+```
+
+## 8. The backend does not need a published port
+
+The backend is still published on port 8000 – but only the frontend needs to reach it, and it does so through `shop-net`. Remove the backend container:
+
+```bash
+docker rm -f backend
+```
+
+Start a new one **without** `-p`, and put it into `shop-net` right away:
+
+```bash
+docker run -d --name backend --network shop-net shopping-backend
 ```
 
 ```bash
@@ -47,343 +427,72 @@ curl localhost:8000/hello
 > curl: (7) Failed to connect to localhost port 8000 after 0 ms: Couldn't connect to server
 > ```
 
-As expected: the port is not published. But the container has an IP address of its own:
+From outside, the backend is no longer reachable. Compare the ports of the two containers:
 
 ```bash
-docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" api-a
+docker ps --format "table {{.Names}}\t{{.Ports}}"
 ```
 
 > **Output**
 > ```text
-> 172.17.0.2
+> NAMES      PORTS
+> backend    8000/tcp
+> frontend   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp
 > ```
 
-Call the API directly at that address (use the IP from *your* output):
+But the frontend still reaches it. Add an item through the frontend – this is the same form the web page uses:
 
 ```bash
-curl 172.17.0.2:8000/hello
+curl -X POST localhost:5000/items -d "name=apples&amount=3" -o /dev/null -w "%{http_code}\n"
 ```
 
 > **Output**
 > ```text
-> {"message":"Good morning!","hostname":"4b9e2c1a7d3f"}
+> 302
 > ```
 
-In a codespace (Linux) this works: your machine is the Docker host and can reach the container network directly. **On macOS and Windows it fails**, because the containers run inside Docker Desktop's Linux VM. Publishing a port with `-p` is the way that works everywhere.
-
-## 4. From inside the container
-
-Inside the container, the app runs on `localhost`. Try `curl` there:
+`302` is a redirect back to the start page – the item was saved. Open the page in your browser, or check on the command line:
 
 ```bash
-docker exec api-a curl localhost:8000/hello
+curl -s localhost:5000 | grep -o "apples"
 ```
 
 > **Output**
 > ```text
-> OCI runtime exec failed: exec failed: unable to start container process: exec: "curl": executable file not found in $PATH
+> apples
 > ```
 
-The image is based on `python:3.12-slim` – a *slim* image ships only what the app needs. No `curl`, no `netcat`, no `ping`. Check:
+The request went from your machine to the frontend, and from the frontend through `shop-net` to the backend – which nobody outside can reach. This is the usual setup: only the part users talk to is published.
 
-```bash
-docker exec api-a sh -c "command -v curl nc ping || echo 'none of them installed'"
-```
+Notice that the shopping list was empty before you added the apples: the new backend container started with an empty memory. More on that in [08 – State](08-state.md).
 
-> **Output**
-> ```text
-> none of them installed
-> ```
-
-But Python is there – so use Python as an HTTP client:
-
-```bash
-docker exec api-a python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/hello').read().decode())"
-```
-
-> **Output**
-> ```text
-> {"message":"Good morning!","hostname":"4b9e2c1a7d3f"}
-> ```
-
-Inside the container, `localhost` is the container itself – and there the app is reachable on port 8000 without any port mapping.
-
-## 5. From a second container on the default network
-
-For the next steps you need a client with network tools. Alpine ships `wget`, `nc` (netcat), `ping` and `nslookup`. Try to reach the API by its container name:
-
-```bash
-docker run --rm alpine:3.22 wget -qO- http://api-a:8000/hello
-```
-
-> **Output**
-> ```text
-> wget: bad address 'api-a'
-> ```
-
-The name is unknown. Try the IP address instead (use yours):
-
-```bash
-docker run --rm alpine:3.22 wget -qO- http://172.17.0.2:8000/hello
-```
-
-> **Output**
-> ```text
-> {"message":"Good morning!","hostname":"4b9e2c1a7d3f"}
-> ```
-
-Works. Both containers are on Docker's **default network** (`bridge`). There, containers can reach each other by IP address – but not by name.
-
-Check only whether the port is open, with netcat:
-
-```bash
-docker run --rm alpine:3.22 nc -zv 172.17.0.2 8000
-```
-
-> **Output**
-> ```text
-> 172.17.0.2 (172.17.0.2:8000) open
-> ```
-
-And what about `localhost`?
-
-```bash
-docker run --rm alpine:3.22 wget -qO- http://localhost:8000/hello
-```
-
-> **Output**
-> ```text
-> wget: can't connect to remote host: Connection refused
-> ```
-
-`localhost` in the Alpine container is the Alpine container itself – nothing listens on port 8000 there.
-
-## 6. A network of your own
-
-Create a network:
-
-```bash
-docker network create shop-net
-```
-
-```bash
-docker network ls
-```
-
-> **Output**
-> ```text
-> NETWORK ID     NAME       DRIVER    SCOPE
-> 1a2b3c4d5e6f   bridge     bridge    local
-> 2b3c4d5e6f7a   host       host      local
-> 3c4d5e6f7a8b   none       null      local
-> 4d5e6f7a8b9c   shop-net   bridge    local
-> ```
-
-Start a second API container in that network:
-
-```bash
-docker run -d --name api-b --network shop-net shopping-api:v3
-```
-
-Call it by name from a client in the same network:
-
-```bash
-docker run --rm --network shop-net alpine:3.22 wget -qO- http://api-b:8000/hello
-```
-
-> **Output**
-> ```text
-> {"message":"Good morning!","hostname":"9f8e7d6c5b4a"}
-> ```
-
-In a network of your own, Docker runs a DNS server: container names become hostnames. Look it up:
-
-```bash
-docker run --rm --network shop-net alpine:3.22 nslookup api-b
-```
-
-> **Output**
-> ```text
-> Server:         127.0.0.11
-> Address:        127.0.0.11:53
->
-> Non-authoritative answer:
-> Name:   api-b
-> Address: 172.18.0.2
-> ```
-
-`127.0.0.11` is Docker's built-in DNS server. `api-b` is in a different address range than `api-a` – it is a different network.
-
-```bash
-docker run --rm --network shop-net alpine:3.22 ping -c 2 api-b
-```
-
-> **Output**
-> ```text
-> PING api-b (172.18.0.2): 56 data bytes
-> 64 bytes from 172.18.0.2: seq=0 ttl=64 time=0.112 ms
-> 64 bytes from 172.18.0.2: seq=1 ttl=64 time=0.098 ms
-> ```
-
-## 7. Networks isolate
-
-From `shop-net`, try to reach `api-a` on the default network:
-
-```bash
-docker run --rm --network shop-net alpine:3.22 wget -qO- -T 3 http://api-a:8000/hello
-```
-
-> **Output**
-> ```text
-> wget: bad address 'api-a'
-> ```
-
-Unknown here. And the other way round – from the default network to `api-b`'s IP address (use the IP from your `nslookup` output):
-
-```bash
-docker run --rm alpine:3.22 nc -zv -w 3 172.18.0.2 8000
-```
-
-> **Output**
-> ```text
-> nc: 172.18.0.2 (172.18.0.2:8000): Operation timed out
-> ```
-
-Containers in different networks cannot talk to each other. Connect `api-a` to `shop-net` as well:
-
-```bash
-docker network connect shop-net api-a
-```
-
-```bash
-docker run --rm --network shop-net alpine:3.22 wget -qO- http://api-a:8000/hello
-```
-
-> **Output**
-> ```text
-> {"message":"Good morning!","hostname":"4b9e2c1a7d3f"}
-> ```
-
-Now it works by name. `api-a` is in two networks at the same time. See who is in `shop-net`:
-
-```bash
-docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}} {{end}}"
-```
-
-> **Output**
-> ```text
-> api-b 172.18.0.2/16 api-a 172.18.0.3/16
-> ```
-
-## 8. Published port or container port?
-
-Start a third API container in `shop-net` and publish it on port **8080**:
-
-```bash
-docker run -d --name api-c --network shop-net -p 8080:8000 shopping-api:v3
-```
-
-From your machine, use the **published** port:
-
-```bash
-curl localhost:8080/hello
-```
-
-> **Output**
-> ```text
-> {"message":"Good morning!","hostname":"7c6b5a4d3e2f"}
-> ```
-
-From another container in the network, use the **container** port:
-
-```bash
-docker run --rm --network shop-net alpine:3.22 wget -qO- http://api-c:8000/hello
-```
-
-> **Output**
-> ```text
-> {"message":"Good morning!","hostname":"7c6b5a4d3e2f"}
-> ```
-
-The published port does not exist inside the network:
-
-```bash
-docker run --rm --network shop-net alpine:3.22 wget -qO- -T 3 http://api-c:8080/hello
-```
-
-> **Output**
-> ```text
-> wget: can't connect to remote host (172.18.0.4): Connection refused
-> ```
-
-`-p 8080:8000` opens a door on your machine. Containers in the same network don't need that door – they talk to port 8000 directly.
-
-## 9. A debugging session with netcat
-
-Start an interactive client in `shop-net`:
-
-```bash
-docker run -it --rm --network shop-net alpine:3.22 sh
-```
-
-**Inside the container**, find out which address belongs to `api-b`:
-
-```bash
-nslookup api-b
-```
-
-Check whether port 8000 is open:
-
-```bash
-nc -zv api-b 8000
-```
-
-> **Output**
-> ```text
-> api-b (172.18.0.2:8000) open
-> ```
-
-Send an HTTP request by hand – netcat only opens the connection, you write the request yourself:
-
-```bash
-printf "GET /hello HTTP/1.0\r\n\r\n" | nc api-b 8000
-```
-
-> **Output**
-> ```text
-> HTTP/1.1 200 OK
-> date: ...
-> server: uvicorn
-> content-length: 53
-> content-type: application/json
->
-> {"message":"Good morning!","hostname":"9f8e7d6c5b4a"}
-> ```
-
-That is all an HTTP request is: a few lines of text over a TCP connection. Leave the container:
-
-```bash
-exit
-```
-
-## 10. Overview
+## 9. Overview
 
 | From | To | Address | Works? |
 |---|---|---|---|
-| your machine | container, port not published | `localhost:8000` | no |
-| your machine | container, port published `-p 8080:8000` | `localhost:8080` | yes |
-| your machine | container IP | `172.17.0.2:8000` | Linux yes, macOS/Windows no |
-| inside the container | the container itself | `localhost:8000` | yes |
+| your machine | backend, published `-p 8000:8000` | `localhost:8000` | yes |
+| your machine | backend, not published | `localhost:8000` | no |
+| inside a container | the container itself | `localhost:8000` | yes |
 | container, default network | other container | by name | no |
-| container, default network | other container | by IP | yes |
-| container, own network | other container | by name | yes |
-| container, own network | other container, published port | `api-c:8080` | no – use `api-c:8000` |
-| container | container in another network | name or IP | no – until both share a network |
+| container, same own network | other container | by name | yes – Docker's DNS |
+| container, same own network | other container | container port `backend:8000` | yes – no `-p` needed |
 
-## 11. Clean up
+| Command | What it does |
+|---|---|
+| `docker network create <name>` | creates a network |
+| `docker network connect <network> <container>` | connects a running container |
+| `docker run --network <name> ...` | starts a container in a network |
+| `docker network inspect <name>` | shows the network and its containers |
+| `docker container inspect <container>` | shows everything about a container, including its networks |
+| `getent hosts <name>` | resolves a hostname (inside a container) |
+| `docker run -it --rm --network <name> nicolaka/netshoot:v0.14` | a throwaway toolbox with `ping`, `nslookup`, `curl`, `nc` in that network |
+
+## 10. Clean up
+
+Keep the setup running if you want to continue with [06 – Docker Compose](06-docker-compose.md) right away – it starts by removing it. Otherwise:
 
 ```bash
-docker rm -f api-a api-b api-c
+docker rm -f frontend backend
 ```
 
 ```bash

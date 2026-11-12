@@ -627,7 +627,7 @@ docker inspect -f "{{.RestartCount}}" api-v3
 > 1
 > ```
 
-The service is back – but its memory is new. Anything on the shopping list before the crash is gone. Keeping data across crashes needs storage outside the container – see [07 – Scaling and State](07-scaling-and-state.md).
+The service is back – but its memory is new. Anything on the shopping list before the crash is gone. Keeping data across crashes needs storage outside the container – see [08 – State](08-state.md).
 
 `on-failure` only reacts to exit codes other than 0. A process that ends with `exit(0)` counts as finished, not as failed – that is why `/kill` uses `os._exit(1)`.
 

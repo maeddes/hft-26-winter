@@ -1,0 +1,33 @@
+name: shopping
+
+services:
+  proxy:
+    image: traefik:v3.6
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --api.insecure=true
+    ports:
+      - "8000:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+  backend:
+    build: ./backend-fastapi
+    deploy:
+      replicas: 2
+    restart: on-failure
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.backend.rule=PathPrefix(`/`)
+      - traefik.http.services.backend.loadbalancer.server.port=8000
+  frontend:
+    build: ./frontend-flask
+    ports:
+      - "5000:5000"
+    environment:
+      BACKEND_URL: http://proxy:80
+    depends_on:
+      - proxy
+      - backend

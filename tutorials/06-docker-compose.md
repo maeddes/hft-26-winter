@@ -2,17 +2,19 @@
 
 ## 1. About
 
-So far you have started every container with a long `docker run` command. With several containers, a network and ports, that becomes tedious and error-prone. Docker Compose describes the whole setup in one file.
+At the end of [04 – Container Networking](04-container-networking.md) you had a working setup: a frontend and a backend in a network of their own, only the frontend published. It took a handful of `docker` commands – and you have to remember all of them every time.
 
-In this walkthrough you first build a small setup by hand, throw it away, and then let Compose build exactly the same thing. Compose does nothing magic: it runs the same steps you would run yourself.
+Docker Compose describes the whole setup in one file. In this walkthrough you build the setup by hand once more, throw it away, and then let Compose build exactly the same thing. Compose does nothing magic: it runs the same steps you would run yourself.
 
 Every code block contains **exactly one command**.
 
 ### 1.1 Prerequisites
 
-- [02 – A REST API in a Container](02-rest-api-in-a-container.md) – the `shopping-api` folder
 - [04 – Container Networking](04-container-networking.md) – networks and container names
 - [05 – Cleaning Up](05-cleaning-up.md) – we start from an empty environment
+- A GitHub Codespace on this repository. Run the commands from the **repository root** unless the text says otherwise.
+
+> **On a Mac:** port 5000 is often taken by the AirPlay Receiver – use port 5001 on your machine instead (`-p 5001:5000`, and `"5001:5000"` in the Compose file).
 
 ## 2. Start from an empty environment
 
@@ -34,51 +36,43 @@ Both lists are empty.
 
 ## 3. The setup by hand
 
-Change into the folder from tutorial 02:
+This is the end result of tutorial 04, in one go. Build both images:
 
 ```bash
-cd shopping-api
+docker build -t shopping-backend code/backend-fastapi
 ```
-
-Build the image:
 
 ```bash
-docker build -t shopping-api:v3 .
+docker build -t shopping-frontend code/frontend-flask
 ```
 
-Create a network:
+Create the network:
 
 ```bash
 docker network create shop-net
 ```
 
-Start the API in that network and publish its port:
+Start the backend in the network – no published port:
 
 ```bash
-docker run -d --name api --network shop-net -p 8000:8000 shopping-api:v3
+docker run -d --name backend --network shop-net shopping-backend
 ```
 
-Start a toolbox container in the same network. `sleep infinity` keeps it running, so you can use it as a client:
+Start the frontend in the network, tell it where the backend is, and publish its port:
 
 ```bash
-docker run -d --name toolbox --network shop-net alpine:3.22 sleep infinity
+docker run -d --name frontend --network shop-net -e BACKEND_URL=http://backend:8000 -p 5000:5000 shopping-frontend
 ```
 
-Test from your machine:
+Test it – the frontend asks the backend for its hostname:
 
 ```bash
-curl localhost:8000/hello
-```
-
-Test from the toolbox, by container name:
-
-```bash
-docker exec toolbox wget -qO- http://api:8000/hello
+curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
 ```
 
 > **Output**
 > ```text
-> {"message":"Good morning!","hostname":"3c2b1a9f8e7d"}
+> Server: <strong>3c2b1a9f8e7d
 > ```
 
 ```bash
@@ -88,7 +82,7 @@ docker ps
 Five commands for two containers. Now throw it all away again:
 
 ```bash
-docker rm -f api toolbox
+docker rm -f frontend backend
 ```
 
 ```bash
@@ -97,34 +91,46 @@ docker network rm shop-net
 
 ## 4. The same setup with Compose
 
-Create the file `compose.yaml` in the `shopping-api` folder:
+The Compose file is already in the repository. Change into the `code` folder:
 
 ```bash
-code compose.yaml
+cd code
 ```
 
-Paste this content and save:
+Look at the file:
+
+```bash
+cat compose.yaml
+```
 
 ```yaml
+name: shopping
+
 services:
-  api:
-    build: .
+  backend:
+    build: ./backend-fastapi
+  frontend:
+    build: ./frontend-flask
     ports:
-      - "8000:8000"
-  toolbox:
-    image: alpine:3.22
-    command: ["sleep", "infinity"]
+      - "5000:5000"
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
 ```
 
 Each entry under `services` becomes a container. Compare with the commands from section 3:
 
 | `compose.yaml` | `docker` command |
 |---|---|
-| `build: .` | `docker build .` |
-| `ports: - "8000:8000"` | `docker run -p 8000:8000` |
-| `image: alpine:3.22` | `docker run alpine:3.22` |
-| `command: ["sleep", "infinity"]` | `… alpine:3.22 sleep infinity` |
+| `name: shopping` | the prefix for all container and network names |
+| `build: ./backend-fastapi` | `docker build code/backend-fastapi` |
+| `ports: - "5000:5000"` | `docker run -p 5000:5000` |
+| `environment: BACKEND_URL: ...` | `docker run -e BACKEND_URL=...` |
+| `depends_on: - backend` | start the backend before the frontend |
 | *(nothing)* | `docker network create` – Compose creates a network automatically |
+
+The backend has no `ports` – exactly like in section 3.
 
 Start everything:
 
@@ -134,13 +140,12 @@ docker compose up -d
 
 > **Output**
 > ```text
->  Image shopping-api-api Built
->  Network shopping-api_default Created
->  Container shopping-api-toolbox-1 Started
->  Container shopping-api-api-1 Started
+>  Network shopping_default Created
+>  Container shopping-backend-1 Started
+>  Container shopping-frontend-1 Started
 > ```
 
-Compose built the image, created a network and started both containers – in one step. The names come from the folder name (`shopping-api`), the service name and a number.
+Compose created a network and started both containers – in one step. It did not even build: Compose names images `<project>-<service>`, which is exactly `shopping-backend` and `shopping-frontend` from section 3. If those images are missing, Compose builds them first.
 
 ```bash
 docker compose ps
@@ -148,9 +153,9 @@ docker compose ps
 
 > **Output**
 > ```text
-> NAME                     IMAGE              SERVICE   STATUS         PORTS
-> shopping-api-api-1       shopping-api-api   api       Up 5 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
-> shopping-api-toolbox-1   alpine:3.22        toolbox   Up 5 seconds
+> NAME                  IMAGE               SERVICE    STATUS         PORTS
+> shopping-backend-1    shopping-backend    backend    Up 4 seconds   8000/tcp
+> shopping-frontend-1   shopping-frontend   frontend   Up 4 seconds   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp
 > ```
 
 They are ordinary containers – `docker ps` shows them, too:
@@ -167,32 +172,83 @@ docker network ls
 
 > **Output**
 > ```text
-> NETWORK ID     NAME                   DRIVER    SCOPE
+> NETWORK ID     NAME               DRIVER    SCOPE
 > ...
-> 5e6f7a8b9c0d   shopping-api_default   bridge    local
+> 5e6f7a8b9c0d   shopping_default   bridge    local
 > ```
 
-Test from your machine:
+Open port 5000 in the **Ports** tab – the shopping list. On the command line:
+
+```bash
+curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
+```
+
+The backend is not reachable from outside:
 
 ```bash
 curl localhost:8000/hello
 ```
 
-Test from the toolbox. In a Compose network, the **service name** is the hostname:
+> **Output**
+> ```text
+> curl: (7) Failed to connect to localhost port 8000 after 0 ms: Couldn't connect to server
+> ```
+
+Inside the Compose network, the **service name** is the hostname:
 
 ```bash
-docker compose exec toolbox wget -qO- http://api:8000/hello
+docker compose exec frontend getent hosts backend
 ```
 
 > **Output**
 > ```text
-> {"message":"Good morning!","hostname":"234f3fb7c863"}
+> 172.27.0.2      backend
 > ```
 
-Look at the logs of one service:
+Add an item through the frontend:
 
 ```bash
-docker compose logs api
+curl -X POST localhost:5000/items -d "name=apples&amount=3" -o /dev/null -w "%{{http_code}}\n"
+```
+
+```bash
+docker compose logs backend
+```
+
+> **Output**
+> ```text
+> ...
+> INFO:     172.27.0.3:51234 - "POST /shopping-list HTTP/1.1" 201 Created
+> INFO:     172.27.0.3:51240 - "GET /shopping-list HTTP/1.1" 200 OK
+> ```
+
+The requests came from `172.27.0.3` – the frontend container.
+
+### 4.1 The toolbox joins the Compose network
+
+The Compose network is an ordinary Docker network. The toolbox from tutorial 04 can join it:
+
+```bash
+docker run -it --rm --network shopping_default nicolaka/netshoot:v0.14
+```
+
+**Inside the toolbox**:
+
+```bash
+nslookup backend
+```
+
+```bash
+curl backend:8000/shopping-list
+```
+
+> **Output**
+> ```text
+> [{{"name":"apples","amount":3}}]
+> ```
+
+```bash
+exit
 ```
 
 ## 5. Throw it away
@@ -203,43 +259,26 @@ docker compose down
 
 > **Output**
 > ```text
->  Container shopping-api-toolbox-1 Removed
->  Container shopping-api-api-1 Removed
->  Network shopping-api_default Removed
+>  Container shopping-frontend-1 Removed
+>  Container shopping-backend-1 Removed
+>  Network shopping_default Removed
 > ```
 
-Containers and network are gone – the same as `docker rm -f` and `docker network rm` in section 3. The image stays:
+Containers and network are gone – the same as `docker rm -f` and `docker network rm` in section 3. The images stay:
 
 ```bash
 docker images
 ```
 
-## 6. Change the code
+After a code change, `docker compose up -d --build` rebuilds the images before starting.
 
-Open `main.py` and change the message from `"Good morning!"` to `"Hello from Compose!"`. Save.
-
-Start again and tell Compose to rebuild the image:
+Go back to the repository root:
 
 ```bash
-docker compose up -d --build
+cd ..
 ```
 
-```bash
-curl localhost:8000/hello
-```
-
-> **Output**
-> ```text
-> {"message":"Hello from Compose!","hostname":"8d7c6b5a4f3e"}
-> ```
-
-```bash
-docker compose down
-```
-
-Change the message back to `"Good morning!"` if you like – the next tutorial does not depend on it.
-
-## 7. Overview
+## 6. Overview
 
 | Command | What it does |
 |---|---|
@@ -251,4 +290,4 @@ Change the message back to `"Good morning!"` if you like – the next tutorial d
 | `docker compose down` | stops and removes containers and network |
 | `docker compose -f <file> …` | uses a file other than `compose.yaml` |
 
-Next: [07 – Scaling and State](07-scaling-and-state.md)
+Next: [07 – Scaling](07-scaling.md)

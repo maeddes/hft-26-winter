@@ -1,4 +1,6 @@
-# Scaling and State with Docker Compose – Step by Step
+# State – Step by Step
+
+> **Draft – not yet adapted.** This tutorial still uses the `shopping-api` folder from tutorial 02 and repeats the load balancer setup. It will be moved to the services in `code/` (frontend, proxy, backend) like tutorials 04, 06 and 07.
 
 ## 1. About
 

@@ -26,10 +26,11 @@ Step-by-step walkthroughs to try things yourself, one command at a time:
 1. [Docker Basics](tutorials/01-docker-basics.md) – pull, run, inspect, build your first image
 2. [A REST API in a Container](tutorials/02-rest-api-in-a-container.md) – from a Python process to a containerized API
 3. [Looking Inside Containers](tutorials/03-looking-inside-containers.md) – interactive shells, `docker exec`, the writable layer, `docker commit` vs. Dockerfile
-4. [Container Networking](tutorials/04-container-networking.md) – who can reach whom: `localhost`, container names, IPs, published vs. container ports
+4. [Container Networking](tutorials/04-container-networking.md) – connecting frontend and backend: names, networks, a toolbox container, ports
 5. [Cleaning Up](tutorials/05-cleaning-up.md) – removing containers, images, networks, volumes and build cache
-6. [Docker Compose](tutorials/06-docker-compose.md) – the same setup by hand and with Compose
-7. [Scaling and State](tutorials/07-scaling-and-state.md) – load balancing, the state problem, a database and a volume
+6. [Docker Compose](tutorials/06-docker-compose.md) – the frontend/backend setup by hand and with Compose
+7. [Scaling](tutorials/07-scaling.md) – a load balancer between frontend and backend, several backend instances
+8. [State](tutorials/08-state.md) – the in-memory problem, a database and a volume (draft)
 
 ## 2026-Oct-16 Kick-off: Why Distributed Systems?
 

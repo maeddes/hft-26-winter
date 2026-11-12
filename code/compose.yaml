@@ -1,0 +1,13 @@
+name: shopping
+
+services:
+  backend:
+    build: ./backend-fastapi
+  frontend:
+    build: ./frontend-flask
+    ports:
+      - "5000:5000"
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend

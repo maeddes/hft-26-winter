@@ -9,7 +9,7 @@ Prepared after 2026-Nov-06. Start at the top.
    - `docker run` does not check for a newer image
    - Not every Dockerfile line is a layer – only `RUN`, `COPY`, `ADD`
 2. **Homework check:** who got their own application into a container? Collect the problems, solve one or two live.
-3. **Multiple containers** (as announced) – tutorials [03](tutorials/03-looking-inside-containers.md) to [07](tutorials/07-scaling-and-state.md) are drafts for this, to be walked through in a codespace first:
+3. **Multiple containers** (as announced) – tutorials [03](tutorials/03-looking-inside-containers.md) to [07](tutorials/07-scaling.md) are drafts for this, to be walked through in a codespace first:
    - Backend and frontend from [`code/`](code/) on a shared Docker network – the frontend reaches the backend by its container name.
    - Volumes: persisting data, and why the in-memory shopping list is lost.
    - Docker Compose as the next step.
