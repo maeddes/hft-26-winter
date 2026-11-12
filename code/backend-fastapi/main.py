@@ -1,3 +1,4 @@
+import os
 import socket
 
 from fastapi import FastAPI, HTTPException, Response, status
@@ -22,6 +23,11 @@ def hello() -> dict[str, str]:
 @app.get("/crash")
 def crash() -> None:
     raise RuntimeError("Simulated application error")
+
+
+@app.get("/kill")
+def kill() -> None:
+    os._exit(1)
 
 
 @app.get("/shopping-list", response_model=list[ShoppingItem])
@@ -55,7 +61,7 @@ def update_item(name: str, item: ShoppingItem) -> ShoppingItem:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
     if item.name != name:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Item name must match the path",
         )
     shopping_list[name] = item

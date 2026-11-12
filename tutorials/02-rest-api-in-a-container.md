@@ -322,6 +322,7 @@ Two containers, two versions, both listening on port 8000 inside – no conflict
 Open `main.py` and replace its whole content with:
 
 ```python
+import os
 import socket
 
 from fastapi import FastAPI, HTTPException, Response
@@ -346,6 +347,11 @@ def hello() -> dict[str, str]:
 @app.get("/crash")
 def crash() -> None:
     raise RuntimeError("Simulated application error")
+
+
+@app.get("/kill")
+def kill() -> None:
+    os._exit(1)
 
 
 @app.get("/shopping-list")
@@ -386,7 +392,7 @@ def delete_item(name: str) -> Response:
     return Response(status_code=204)
 ```
 
-This is a CRUD API – **c**reate, **r**ead, **u**pdate, **d**elete – for a shopping list. Each item has a `name` (also its ID) and an `amount`. The list is kept in memory.
+This is a CRUD API – **c**reate, **r**ead, **u**pdate, **d**elete – for a shopping list. Each item has a `name` (also its ID) and an `amount`. The list is kept in memory. Two more endpoints simulate failures: `/crash` and `/kill` – more on them in section 11.
 
 Build version 3:
 
@@ -549,6 +555,82 @@ docker logs api-v3
 > RuntimeError: Simulated application error
 > ```
 
+An error the application survives is one thing. Now crash the process itself – `/kill` calls `os._exit(1)`, the Python counterpart of Java's `Runtime.halt(1)`: the process ends immediately with exit code 1.
+
+```bash
+curl localhost:8000/kill
+```
+
+> **Output**
+> ```text
+> curl: (52) Empty reply from server
+> ```
+
+No answer at all – the process is gone. And with it the container:
+
+```bash
+docker ps
+```
+
+`api-v3` is not listed any more.
+
+```bash
+docker ps -a --filter name=api-v3
+```
+
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE             COMMAND                  CREATED         STATUS                     PORTS     NAMES
+> 5d4c3b2a1f0e   shopping-api:v3   "uvicorn main:app --…"   5 minutes ago   Exited (1) 3 seconds ago             api-v3
+> ```
+
+`Exited (1)`: the main process of a container ended, so the container stopped. The exit code tells Docker that it was a failure.
+
+### 11.1 Let Docker restart it
+
+Docker can restart a container whose process fails. Remove the crashed container:
+
+```bash
+docker rm api-v3
+```
+
+Start it again with a restart policy:
+
+```bash
+docker run -d --name api-v3 --restart on-failure -p 8000:8000 shopping-api:v3
+```
+
+Crash it again:
+
+```bash
+curl localhost:8000/kill
+```
+
+```bash
+docker ps
+```
+
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE             COMMAND                  CREATED          STATUS         PORTS                                         NAMES
+> 7a6b5c4d3e2f   shopping-api:v3   "uvicorn main:app --…"   30 seconds ago   Up 2 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   api-v3
+> ```
+
+Created 30 seconds ago, up for 2 seconds: Docker restarted the same container right after the crash. Count the restarts:
+
+```bash
+docker inspect -f "{{.RestartCount}}" api-v3
+```
+
+> **Output**
+> ```text
+> 1
+> ```
+
+The service is back – but its memory is new. Anything on the shopping list before the crash is gone. Keeping data across crashes needs storage outside the container – see [07 – Scaling and State](07-scaling-and-state.md).
+
+`on-failure` only reacts to exit codes other than 0. A process that ends with `exit(0)` counts as finished, not as failed – that is why `/kill` uses `os._exit(1)`.
+
 ## 12. Clean up
 
 ```bash
@@ -573,5 +655,8 @@ cd ..
 | Run with `-p` | `docker run -d -p 8000:8000 shopping-api:v1` | reachable; hostname = container ID |
 | Two versions | `-p 8000:8000` and `-p 8001:8000` | same internal port, no conflict |
 | Restart | `docker restart api-v3` | in-memory data is gone |
+| Error | `curl localhost:8000/crash` | HTTP 500, the process keeps running |
+| Crash | `curl localhost:8000/kill` | process and container end with exit code 1 |
+| Restart policy | `docker run --restart on-failure ...` | Docker restarts the crashed container; memory is empty |
 
-Next: connecting several containers – a web frontend for this API on a shared Docker network.
+Next: [03 – Looking Inside Containers](03-looking-inside-containers.md) · [04 – Container Networking](04-container-networking.md)

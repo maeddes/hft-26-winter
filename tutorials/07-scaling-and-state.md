@@ -133,19 +133,33 @@ while true; do curl -s localhost:8000/shopping-list; echo; sleep 1; done
 
 The apples exist only in the memory of the instance that received the `POST`. Every instance has its own list – the users see a different shopping list on every request.
 
-It gets worse when an instance fails. List the containers:
+It gets worse when an instance fails. Crash one of them with `/kill` from tutorial 02 – the proxy sends the request to whichever instance is next:
 
 ```bash
-docker compose -f compose-lb.yaml ps
+curl localhost:8000/kill
 ```
 
-Kill one of the API instances:
+> **Output**
+> ```text
+> Bad Gateway
+> ```
+
+The instance died before it could answer, so the proxy reports an error. One container has exited:
 
 ```bash
-docker kill shopping-api-api-1
+docker compose -f compose-lb.yaml ps -a
 ```
 
-Start it again:
+> **Output**
+> ```text
+> NAME                   SERVICE   STATUS                     PORTS
+> shopping-api-api-1     api       Exited (1) 5 seconds ago
+> shopping-api-api-2     api       Up 3 minutes               8000/tcp
+> shopping-api-api-3     api       Up 2 minutes               8000/tcp
+> shopping-api-proxy-1   proxy     Up 3 minutes               ...
+> ```
+
+The other instances keep serving requests. Start the crashed one again:
 
 ```bash
 docker compose -f compose-lb.yaml up -d
@@ -155,7 +169,7 @@ docker compose -f compose-lb.yaml up -d
 while true; do curl -s localhost:8000/shopping-list; echo; sleep 1; done
 ```
 
-If `api-1` was the instance with the apples, they are gone for good – the new process started with an empty list. Otherwise kill the next one and try again.
+If the crashed instance was the one with the apples, they are gone for good – the new process started with an empty list. Otherwise crash the next one and try again.
 
 Remove everything:
 
@@ -313,7 +327,7 @@ What changed compared to tutorial 02:
 
 - `MemoryStore` and `PostgresStore` offer the same operations; the endpoints only talk to `store`.
 - `/hello` also reports which storage is active.
-- `/kill` ends the process immediately with exit code 1 – a real crash, not an error response.
+- `/crash` and `/kill` are unchanged.
 
 Open `requirements.txt`, paste this content as a third line – the PostgreSQL driver – and save:
 
