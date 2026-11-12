@@ -2,6 +2,7 @@
 inbox/
 share/
 private/
+tmp/
 CLAUDE.md
 
 .DS_Store
