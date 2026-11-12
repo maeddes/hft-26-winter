@@ -48,15 +48,13 @@ items, and its “Check backend” link displays the backend hostname.
 
 ## Build context demo
 
-The files `Dockerfile-backend`, `Dockerfile-frontend` and `Dockerfile-simple` in
-this folder show that the Dockerfile and the build context are independent:
+The files `Dockerfile-backend` and `Dockerfile-frontend` in this folder show that the Dockerfile and the build context are independent:
 `-f` names the Dockerfile, the last argument is the context, and `COPY` only
 sees files inside the context.
 
 ```bash
 docker build -f code/Dockerfile-backend -t shopping-list-backend code/backend-fastapi
 docker build -f code/Dockerfile-frontend -t shopping-list-frontend code
-docker build -f code/Dockerfile-simple -t hello-simple code
 ```
 
 The backend variant uses the service folder as context; the frontend variant
