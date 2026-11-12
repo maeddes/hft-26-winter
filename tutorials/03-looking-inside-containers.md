@@ -328,3 +328,5 @@ docker system df
 | `docker history <image>` | shows the layers of an image and how they were created |
 | `docker container prune` / `docker image prune` | removes stopped containers / untagged images |
 | `docker system df` | shows the disk usage of images, containers, volumes and build cache |
+
+Next: [04 – Container Networking](04-container-networking.md)

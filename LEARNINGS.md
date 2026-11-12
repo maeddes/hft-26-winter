@@ -29,6 +29,9 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [ ] **State per instance:** v1 and v2 each keep their own shopping list in memory. Scaling or replacing a container loses data – the bridge to stateless services, volumes and a database.
 - [ ] **Copilot acted in the background:** it built and tested the image before being asked, which is why the first `docker build` was already cached. Worth making visible to students: agent mode runs commands.
 - [ ] **Multi-platform fix still to be shown live** (postponed from Oct-30 again).
+- [ ] **PostgreSQL 18 moved its data directory:** the image declares the volume at `/var/lib/postgresql` (PGDATA `/var/lib/postgresql/18/docker`). Most guides still mount `/var/lib/postgresql/data` – with version 18 that no longer persists the data as expected.
+- [ ] **Storage by configuration instead of profiles:** FastAPI has no Spring-style profiles, but one environment variable (`DATABASE_URL`) is enough to switch the same image between memory and PostgreSQL – 12-factor "config in the environment". Used in tutorial 07.
+- [ ] **Tutorial 08 idea:** swap the implementation behind the load balancer – a Spring Boot or Go backend with the same API – without touching proxy or database. The polyglot exchange from the KubeCon talk.
 
 ## 2026-Oct-30
 
