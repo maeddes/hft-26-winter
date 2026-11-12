@@ -226,10 +226,14 @@ The requests came from `172.27.0.3` – the frontend container.
 
 ### 4.1 The toolbox joins the Compose network
 
-The Compose network is an ordinary Docker network. The toolbox from tutorial 04 can join it:
+The Compose network is an ordinary Docker network. The toolbox from tutorial 04 can join it. Build it again – section 2 removed all images (you are in the `code` folder):
 
 ```bash
-docker run -it --rm --network shopping_default nicolaka/netshoot:v0.14
+docker build -t toolbox toolbox
+```
+
+```bash
+docker run -it --rm --network shopping_default toolbox
 ```
 
 **Inside the toolbox**:

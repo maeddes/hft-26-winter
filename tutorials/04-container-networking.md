@@ -112,7 +112,7 @@ python -c "import urllib.request; print(urllib.request.urlopen('http://localhost
 > {"message":"Good Morning!","hostname":"154ad27de4e1"}
 > ```
 
-Inside the container, `localhost` is the container itself – the app answers on port 8000 without any port mapping. Leave the container:
+Inside the container, `localhost` is the container itself – the app answers on port 8000 without any port mapping. For a closer look at the network we will need proper tools – see section 5.1. Leave the container:
 
 ```bash
 exit
@@ -163,10 +163,45 @@ exit
 
 ### 5.1 A toolbox container
 
-Both images are *slim* – no `ping`, no `nslookup`, no netcat. That is a good thing: an application image should contain the application, not a debugging kit. Instead of installing tools into the frontend, start a **third container** whose only job is to bring those tools along: [`nicolaka/netshoot`](https://github.com/nicolaka/netshoot), a popular image for network troubleshooting.
+Both images are *slim* – no `ping`, no `nslookup`, no `curl`, no netcat. That is a good thing: an application image should contain the application, not a debugging kit. Instead of installing tools into the frontend or the backend, build a **third image** whose only job is to bring those tools along. It is in the repository:
 
 ```bash
-docker run -it --rm --name toolbox nicolaka/netshoot:v0.14
+cat code/toolbox/Dockerfile
+```
+
+```dockerfile
+FROM alpine:3.22
+RUN apk add --no-cache bash curl bind-tools iputils-ping netcat-openbsd
+CMD ["bash"]
+```
+
+- `alpine:3.22` – a minimal Linux base, about 9 MB
+- `apk add` – Alpine's package manager, like `apt-get install` on Debian or Ubuntu; `--no-cache` keeps the package index out of the image
+- `bash` – a full shell; `curl` – HTTP calls; `bind-tools` – `nslookup` and `dig`; `iputils-ping` – `ping`; `netcat-openbsd` – `nc`
+- `CMD ["bash"]` – a container from this image starts a shell
+
+No application, no `COPY` – just a base image and a few packages. Build it:
+
+```bash
+docker build -t toolbox code/toolbox
+```
+
+```bash
+docker images
+```
+
+> **Output**
+> ```text
+> IMAGE                      ID             DISK USAGE   CONTENT SIZE   EXTRA
+> shopping-backend:latest    05a800c80efc        169MB          ...
+> shopping-frontend:latest   684567b5e047        163MB          ...
+> toolbox:latest             89af9df4ad44       27.8MB          ...
+> ```
+
+About 28 MB – the application images are six times bigger, mostly because of Python. (A ready-made debugging image like `nicolaka/netshoot` brings even more tools, but weighs over 600 MB.) Start a toolbox container:
+
+```bash
+docker run -it --rm --name toolbox toolbox
 ```
 
 The prompt changes – you are inside the toolbox. It is on the default network, like the other two. **Inside the toolbox**, look up the backend:
@@ -257,7 +292,7 @@ The hostname of the backend container: the frontend reached it through `shop-net
 Start the toolbox again – this time directly in `shop-net`:
 
 ```bash
-docker run -it --rm --name toolbox --network shop-net nicolaka/netshoot:v0.14
+docker run -it --rm --name toolbox --network shop-net toolbox
 ```
 
 **Inside the toolbox**, look up the backend:
@@ -485,7 +520,7 @@ Notice that the shopping list was empty before you added the apples: the new bac
 | `docker network inspect <name>` | shows the network and its containers |
 | `docker container inspect <container>` | shows everything about a container, including its networks |
 | `getent hosts <name>` | resolves a hostname (inside a container) |
-| `docker run -it --rm --network <name> nicolaka/netshoot:v0.14` | a throwaway toolbox with `ping`, `nslookup`, `curl`, `nc` in that network |
+| `docker run -it --rm --network <name> toolbox` | a throwaway toolbox with `ping`, `nslookup`, `curl`, `nc` in that network |
 
 ## 10. Clean up
 

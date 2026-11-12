@@ -46,6 +46,17 @@ docker run --rm --name shopping-frontend --network shopping-demo \
 Open port 5000 for the web UI. The UI supports adding, updating, and deleting
 items, and its “Check backend” link displays the backend hostname.
 
+## Toolbox
+
+`toolbox/` is a small image (about 28 MB) with `bash`, `curl`, `ping`,
+`nslookup`, `dig` and `nc` – for looking around in a Docker network. The
+application images are slim and contain none of these tools on purpose.
+
+```bash
+docker build -t toolbox code/toolbox
+docker run -it --rm --network <network> toolbox
+```
+
 ## Docker Compose
 
 From this folder, `compose.yaml` starts the same setup with one command –
