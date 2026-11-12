@@ -13,7 +13,15 @@ Every code block contains **exactly one command**. Some commands run *inside* a 
 
 ## 2. An interactive container
 
-So far, every container ran one command and exited. Start a container with a shell and stay in it:
+So far, every container ran one command and exited. First try to start a shell without any options:
+
+```bash
+docker run --rm alpine:3.22 sh
+```
+
+Nothing happens – you get your prompt back right away. The shell did start, but no terminal was attached, so it had no input to wait for. It reached the end of its input and terminated – and with it the container.
+
+Now start the same shell with `-it` and stay in it:
 
 ```bash
 docker run -it --rm alpine:3.22 sh
