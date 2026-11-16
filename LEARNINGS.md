@@ -5,6 +5,36 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [x] addressed in class
 - [ ] not yet addressed (or only published here)
 
+## 2026-Nov-13
+
+### Corrections
+
+- [ ] **A Compose service is not a container:** "a service in that context is a container", "every service is basically a container". A service describes *how* to run a container; Compose starts one or more containers from it. The session showed it a few minutes later: `replicas: 2` – one service `backend`, two containers `shopping-backend-1` and `shopping-backend-2`. That is also the step to Kubernetes, where a Service is something else again.
+- [ ] **Both replicas can be called `backend`:** "only one of them can be called backend" is not right. In a Compose network every container of a service gets the service name as a DNS alias; Docker's DNS returns the addresses of all replicas. What it does not do is balance load: the client picks an address (usually the first one) – that is why the proxy is needed.
+- [ ] **`docker stop` / `start` and state:** "starting and stopping means it doesn't lose the state" – and right after, the shopping list was empty. Both are true, for different things: the writable layer, name, ports and configuration survive; the process restarts, so everything in memory is gone.
+- [ ] **No sticky session:** the frontend did not stick to one backend. Every page calls the backend twice (`/hello` and `/shopping-list`); with two instances and round robin per request, `/hello` always lands on the same one. `curl /hello` directly alternates, as shown right after.
+- [ ] **`VOLUME` in a Dockerfile does create a volume:** "it's just a reference to a volume and it's not going to create one". `VOLUME` declares a mount point (a path in the container, not a volume name). On every `docker run` without `-v` for that path, Docker creates a new *anonymous* volume – these pile up in `docker volume ls`. The slide (`VOLUME log-volume`) suggests a named volume; it actually creates the directory `/log-volume` as a mount point.
+- [ ] **Dockerfile layers and `commit`, again:** "every line in a docker file results in a layer" (see Nov-06) – the `docker history` output in class showed `EXPOSE` and `CMD` with `0B`, metadata only. "Under the hood, the Dockerfile mechanism uses that commit command" was true for the legacy builder; BuildKit does not create intermediate containers.
+- [ ] **Small slip:** "`docker run ubuntu` creates an image of that container" – it creates a container from the image.
+- [ ] **Slides (Network, Storage & Compose):**
+  - p. 16: the nginx bind mount goes to `/var/www/html`, but the official nginx image serves `/usr/share/nginx/html` – the example would not show the files.
+  - p. 23: `openjdk` images are deprecated since 2022 (use `eclipse-temurin`); `VOLUME log-volume` see above; `CMD` lacks the closing `]`.
+  - p. 20: `ubuntu:18.04` is out of standard support since 2023.
+  - p. 29/32: `version: '3.7'` is obsolete – current Compose ignores it and prints a warning.
+  - p. 32: PostgreSQL with `PGDATA=/var/lib/postgresql/data/pgdata` – with the current `postgres` (18) the data directory moved (see Nov-06).
+  - Novatec branding.
+
+### Ideas to go deeper
+
+- [ ] **The broken codespace:** names resolved, but `ping`, `curl` and `nc` timed out – with plain `docker` and with Compose. A fresh codespace worked. Likely broken packet filter rules of the Docker daemon in that codespace (a student suggested iptables), not verified. Before throwing one away next time: `sudo iptables -S FORWARD`, `cat /proc/sys/net/ipv4/ip_forward` (must be `1`), `docker info`. "Codespaces: Rebuild Container" is faster than a new codespace. And test a fresh codespace before class.
+- [ ] **Tutorial 04: frontend as a local process first** – noticed in class as missing. It shows that the state lives in the backend before containers come in.
+- [ ] **Toolbox as a Compose service** (suggested in class): with `profiles: [debug]` it only starts on `docker compose --profile debug up`.
+- [ ] **Bind mount example with nginx** ("maybe I'll add this example to the tutorial"): the start page stays on the host and is mounted instead of copied – the dynamic counterpart to the `commit` demo.
+- [ ] **Sketch:** the debug container is labelled "Ubuntu", the toolbox is Alpine.
+- [ ] **Rename the API paths** ("shopping list is not really a good REST thing"): e.g. `/items` and `/items/{name}` – a natural moment to talk about resource naming in REST.
+- [ ] **Exam idea mentioned in class:** a long `docker run` command, explain every switch. Already in the review questions.
+- [ ] **127.0.0.1 inside a container** was a strong teaching moment: the same address that worked for the local process now points to the frontend container itself. Worth keeping exactly as it happened.
+
 ## 2026-Nov-06
 
 ### Corrections
@@ -22,7 +52,7 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 ### Ideas to go deeper
 
 - [ ] **`EXPOSE` alone publishes nothing:** the demo Dockerfile says `EXPOSE 8000`, and `curl` still fails until `-p 8000:8000` is added. Worth saying explicitly – students often expect `EXPOSE` to open the port. It is documentation in the image metadata; `-P` publishes all exposed ports to random host ports.
-- [ ] **Clean up `code/`:** the backend is built with `code/backend-fastapi` as context, the frontend with `code/` – exactly the build-context confusion from class. Moving each Dockerfile into its service folder (`code/backend-fastapi/Dockerfile`) makes it `docker build -t backend:v1 code/backend-fastapi`, like the multi-language samples shown.
+- [x] **Clean up `code/`:** the backend is built with `code/backend-fastapi` as context, the frontend with `code/` – exactly the build-context confusion from class. Moving each Dockerfile into its service folder (`code/backend-fastapi/Dockerfile`) makes it `docker build -t backend:v1 code/backend-fastapi`, like the multi-language samples shown.
 - [ ] **Remove the tracked `__pycache__/main.cpython-314.pyc`:** `.gitignore` does not affect files that are already committed – `git rm --cached -r __pycache__`.
 - [ ] **Non-root in the demo Dockerfiles:** recommended in class, but `Dockerfile-backend` and `Dockerfile-frontend` still run as root. A `USER` line would make them consistent.
 - [ ] **The frontend has `timeout=5`:** a concrete countermeasure for "the network is reliable" and "latency is zero" – worth pointing out when connecting the two containers.
@@ -53,9 +83,9 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 
 - [ ] **Docker Hub pull limits hit classrooms:** anonymous pulls are limited to 100 per 6 hours *per IP address*. A whole class behind the HFT network shares one IP. With `docker login`, each student gets 200 pulls per 6 hours of their own.
 - [ ] **Fix the Apple Silicon demo live** with a multi-platform build – it shows image index, architecture and emulation in one go.
-- [ ] **`docker commit` vs. Dockerfile:** commit works, but is not reproducible. A Dockerfile documents how the image came about – the same reproducibility argument as the DevOps problem.
+- [x] **`docker commit` vs. Dockerfile:** commit works, but is not reproducible. A Dockerfile documents how the image came about – the same reproducibility argument as the DevOps problem.
 - [ ] **Sketch:** label the "OS" layer as *OS userland / base image* and show the shared kernel below the container runtime. That answers the "VM without an operating system" question from the chat.
-- [ ] **Image layers in practice:** `docker history <image>` shows the layers and their sizes; `docker system df` and `docker system prune` for cleaning up.
+- [x] **Image layers in practice:** `docker history <image>` shows the layers and their sizes; `docker system df` and `docker system prune` for cleaning up.
 
 ## 2026-Oct-23
 

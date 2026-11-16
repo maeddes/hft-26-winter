@@ -343,3 +343,112 @@ By the end of this lecture, students will be able to:
 9. You delete the source file of an application after building its image. Does the container still start? Why?
 10. What is a multi-stage build, and why is it useful for compiled languages like Java or Go?
 11. Why did an image built in a codespace fail on an Apple Silicon Mac? How can this be solved?
+
+## 2026-Nov-13 Looking Inside Containers, Networks, Storage and Docker Compose
+
+### Recap: the backend in a container, and a container just for debugging
+
+![Backend container and debug container](sketches/2026-11-13_backend-and-debug-container.excalidraw.png)
+
+### A frontend for the backend – first as a local process
+
+![Frontend as a local process, backend in a container](sketches/2026-11-13_frontend-local-backend-in-container.excalidraw.png)
+
+### Both in containers: how do they find each other?
+
+![Frontend and backend in a Docker network](sketches/2026-11-13_frontend-backend-docker-network.excalidraw.png)
+
+### Scaling: a load balancer in front of two backend instances
+
+![Load balancer in front of two backends](sketches/2026-11-13_load-balancer-two-backends.excalidraw.png)
+
+### **Content Overview**
+
+**Recap and the tutorials**
+   - The demo code is in [`code/`](code/), step-by-step walkthroughs are in [`tutorials/`](tutorials/). They follow the lecture – if containers are new to you, do them.
+   - Last week in ten minutes ([tutorial 02](tutorials/02-rest-api-in-a-container.md)): the FastAPI shopping list as a local process, tested with `curl`, then Dockerfile, `docker build`, `docker run -p 8000:8000`.
+
+**Looking inside containers** ([tutorial 03](tutorials/03-looking-inside-containers.md))
+   - `docker run alpine:3.22` or `docker run ubuntu` starts and exits right away: the default command is a shell, and without a terminal it has no input and ends.
+   - A command after the image name replaces the default command: `docker run ubuntu env`, `ls`, `whoami` (`root` inside, `codespace` outside). Each run creates a new container that exits after the command.
+   - `-i` keeps the input open, `-t` gives a terminal: `docker run -it ubuntu bash` opens a shell inside the container. The hostname is the container ID, `/etc/os-release` shows Ubuntu. `exit` ends the shell – and the container, because the shell is its main process.
+   - `docker exec` runs an additional process in a *running* container: `docker run` takes an image and creates a container, `docker exec` takes a running container. With `--name web` you can use the name instead of the ID: `docker exec web ps` shows the nginx master and worker processes, `docker exec -it web sh` opens a shell, and `ps` inside also shows that shell.
+   - Change the start page in the running nginx container: `curl` shows the change immediately. `docker diff web` lists what changed in the container's writable layer. A second container from the same image shows the original page. Leaving the `exec` shell with `exit` does not stop the container – nginx is still process 1.
+   - `docker commit web my-nginx:v1` turns the container's state into a new image (slightly smaller: the new `index.html` is shorter than the default page). `docker history` shows only an anonymous layer for it. The same change in a Dockerfile (`COPY index.html ...`) shows up as a readable, reproducible step – the Dockerfile is the default way to build images.
+   - `docker history` on the shopping API image: the layers of the Python base image at the bottom, our steps on top. `COPY` and `RUN` add files and have a size; `EXPOSE` and `CMD` only change metadata and show `0B`.
+   - Options go before the image name: `docker run -d -p 8080:80 --name newweb my-nginx:v1`.
+
+**Networks, storage and Compose** (slides)
+   - Containers are isolated from each other. `docker network create`, `docker network connect <network> <container>`, or `--network` with `docker run`. `bridge` is the default driver. `docker inspect` works for containers, images and networks.
+   - The writable layer is gone when the container is removed. To keep data (a database, files) or to read configuration from outside, mount a part of the host's file system:
+     - **bind mount**: `-v /path/on/host:/path/in/container` – a direct reference to a host directory
+     - **volume**: `-v myvolume:/path/in/container` – a Docker-managed object, created if it does not exist, listed and removed with `docker volume ls` / `docker volume rm`, easier to back up and migrate
+   - A Dockerfile can declare a mount point (`VOLUME`), but not a network – networks belong to running containers, not to an image.
+   - **Docker Compose** describes containers, networks and volumes of an application in one YAML file. It does nothing you could not do with `docker` commands, but replaces a sequence of error-prone steps with `docker compose up`. A **service** describes how to run a container; Compose starts one or more containers from it.
+
+**Frontend and backend** ([tutorial 04](tutorials/04-container-networking.md))
+   - The Flask frontend in [`code/frontend-flask`](code/frontend-flask/) calls the backend at `BACKEND_URL`, default `http://127.0.0.1:8000`.
+   - Frontend as a local process, backend in a container with `-p 8000:8000`: it works. Items added with `curl` appear in the frontend – the state is in the backend, the frontend only reads and changes it. A wrong port in `BACKEND_URL` → "Could not reach backend".
+   - `docker stop` and `docker start` keep the container's file system and configuration, but the process starts fresh – the in-memory shopping list is empty again.
+   - Frontend in a container with `BACKEND_URL=http://127.0.0.1:8000`: fails, because `127.0.0.1` is now the frontend container itself. With `http://backend:8000` on the default `bridge` network: the name cannot be resolved – the default bridge has no name resolution for containers.
+   - Slim images have no `ping`, `curl` or `nc`. Instead of installing tools in a running container, use a separate **toolbox container** ([`code/toolbox`](code/toolbox/): Alpine with curl, ping, nslookup, netcat) in the same network.
+   - `docker network create shop-net`, `docker network connect shop-net backend`, `docker network inspect shop-net` shows the connected containers and their IP addresses. On a user-defined network, the container name is a DNS name.
+   - `docker build` failed with "parent snapshot ... does not exist": a broken build cache, fixed with `docker builder prune`.
+
+**When the environment is broken**
+   - In the codespace used in class, the names resolved (`nslookup backend` worked), but `ping`, `curl` and `nc` all timed out – with plain `docker` commands and with Compose. A new codespace with the same code worked right away.
+   - So the commands were right; the Docker network setup inside that codespace was broken. If you see something like this: push your code and create a new codespace (or run "Codespaces: Rebuild Container").
+
+**Docker Compose live** ([tutorial 06](tutorials/06-docker-compose.md))
+   - [`code/compose.yaml`](code/compose.yaml): `backend` and `frontend`, each with `build:`, the frontend with `ports`, `environment` and `depends_on`.
+   - `docker compose up` builds the images, creates the network `shopping_default` and starts the containers. The toolbox joins `shopping_default`: `ping frontend`, `ping backend` and `curl backend:8000/shopping-list` work. `docker compose down` removes containers and network.
+
+**Scaling with a load balancer** ([tutorial 07](tutorials/07-scaling.md))
+   - [`code/compose-lb.yaml`](code/compose-lb.yaml): two backend replicas and a Traefik proxy; the frontend calls `http://proxy:80`.
+   - The service name `backend` resolves to both replicas, but name resolution alone is no load balancing: the client decides which of the addresses it uses. The proxy distributes each request.
+   - `curl localhost:8000/hello` repeatedly: the hostname alternates between the two instances (round robin per request). Through the frontend it looks stuck on one instance: every page calls the backend twice (`/hello` and `/shopping-list`), so `/hello` always lands on the same one.
+   - Traefik in detail: next session.
+
+**Outlook: the PVL**
+   - Think about a distributed application you would like to build. Next session: examples from last year's groups and suggestions to start with. You can start the PVL now.
+
+### **Homework**
+
+- Work through tutorials [03](tutorials/03-looking-inside-containers.md), [04](tutorials/04-container-networking.md), [06](tutorials/06-docker-compose.md) and [07](tutorials/07-scaling.md).
+- Think about an idea for your PVL: what could be a distributed application or scenario?
+
+---
+
+### **Learning Objectives**
+
+By the end of this lecture, students will be able to:
+- Explain why a container from a base image like `ubuntu` exits immediately, and how `-i`, `-t` and a command after the image name change that.
+- Distinguish `docker run` from `docker exec` and use both to get a shell in a container.
+- Explain the writable container layer and inspect it with `docker diff`.
+- Compare `docker commit` with a Dockerfile and read `docker history`.
+- Explain why `127.0.0.1` and container names do not work between containers on the default bridge, and connect containers with a user-defined network.
+- Debug container connectivity with a separate toolbox container.
+- Distinguish bind mounts from volumes and name use cases for both.
+- Describe a multi-container application in a Compose file and start it with `docker compose up`.
+- Explain why several instances of a service need a load balancer in front of them.
+
+---
+
+### **Student/Review Questions**
+
+1. Why does `docker run ubuntu` exit right away? What changes with `docker run -it ubuntu bash`?
+2. What do `-i` and `-t` do?
+3. What is the difference between `docker run` and `docker exec`? Which one creates a new container?
+4. You type `exit` in a shell opened with `docker run -it` and in one opened with `docker exec -it`. Why does the container stop in one case and keep running in the other?
+5. You change a file inside a running container. Where is the change stored, and how can you see it? Does a second container from the same image see it?
+6. Why is a Dockerfile better than `docker commit` for building images? What does `docker history` show in both cases?
+7. What survives `docker stop` and `docker start`, and what does not?
+8. A frontend container calls `http://127.0.0.1:8000` to reach a backend in another container. Why does this fail?
+9. Why can containers on the default bridge network not reach each other by name, while on a user-defined network they can?
+10. Why do slim images have no `ping` or `curl`, and how can you debug network problems anyway?
+11. What is the difference between a bind mount and a volume? Give a use case for each.
+12. Why can a Dockerfile declare a volume, but not a network?
+13. What does `docker compose up` do that you would otherwise do by hand? Which network does it create?
+14. What is a service in a Compose file, and how does it relate to containers?
+15. Two backend instances are running. Why does the frontend need a load balancer in front of them?
+16. Explain every switch in `docker run -d --rm --name web --network shop-net -p 8080:80 -e MODE=dev -v data:/data nginx`.
