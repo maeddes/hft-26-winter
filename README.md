@@ -387,15 +387,12 @@ By the end of this lecture, students will be able to:
    - So the commands were right; the Docker network setup inside that codespace was broken. If you see something like this: push your code and create a new codespace (or run "Codespaces: Rebuild Container").
    - Before that, `docker build` had failed with "parent snapshot ... does not exist": a broken build cache, fixed with `docker builder prune`.
 
-**Docker Compose live** ([tutorial 06](tutorials/06-docker-compose.md))
-   - [`code/compose.yaml`](code/compose.yaml): `backend` and `frontend`, each with `build:`, the frontend with `ports`, `environment` and `depends_on`.
-   - `docker compose up` builds the images, creates the network `shopping_default` and starts the containers. The toolbox joins `shopping_default`: `ping frontend`, `ping backend` and `curl backend:8000/shopping-list` work. `docker compose down` removes containers and network.
+**Docker Compose live** – [tutorial 06](tutorials/06-docker-compose.md)
+   - The same frontend/backend setup in one file: `docker compose up` builds, creates the network `shopping_default` and starts both containers; the toolbox can join that network.
 
-**Scaling with a load balancer** ([tutorial 07](tutorials/07-scaling.md))
-   - [`code/compose-lb.yaml`](code/compose-lb.yaml): two backend replicas and a Traefik proxy; the frontend calls `http://proxy:80`.
-   - The service name `backend` resolves to both replicas, but name resolution alone is no load balancing: the client decides which of the addresses it uses. The proxy distributes each request.
-   - `curl localhost:8000/hello` repeatedly: the hostname alternates between the two instances (round robin per request). Through the frontend it looks stuck on one instance: every page calls the backend twice (`/hello` and `/shopping-list`), so `/hello` always lands on the same one.
-   - Traefik in detail: next session.
+**Scaling with a load balancer** – [tutorial 07](tutorials/07-scaling.md)
+   - Two backend replicas behind a Traefik proxy: round robin per request – and why it looks stuck through the frontend.
+   - The service name `backend` resolves to both replicas, but name resolution is no load balancing – the proxy decides per request.
 
 **Outlook: the PVL**
    - Think about a distributed application you would like to build. Next session: examples from last year's groups and suggestions to start with. You can start the PVL now.

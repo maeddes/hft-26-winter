@@ -73,8 +73,16 @@ backend instances (proxy on port 8000, dashboard on port 8080):
 docker compose -f compose-lb.yaml up -d --scale backend=3
 ```
 
-Both use the project name `shopping`. Stop with `docker compose down` (add
-`-f compose-lb.yaml` for the second file).
+`compose.yaml` and `compose-lb.yaml` only have `build:` – Compose builds the
+images from the service folders. Two variants show the other ways:
+
+- `compose-image.yaml` – only `image:` (`shopping-backend:v1`, …): nothing is
+  built, the images must exist locally or in a registry
+- `compose-build-image.yaml` – `build:` and `image:`: Compose tries to pull
+  `…:v2`, builds it if that fails, and tags the result with that name
+
+All files use the project name `shopping`. Stop with `docker compose down` (add
+`-f <file>` for the other files).
 
 ## Build context demo
 
