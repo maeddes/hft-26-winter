@@ -290,25 +290,19 @@ The code from the demo is in [`code/`](code/) – see [code/README.md](code/READ
 
 **Recap: why last week's demo failed**
    - The image was built in a codespace on `linux/amd64` and pulled on an Apple Silicon Mac (`arm64`). The container runtime abstracts the operating system, not the CPU: an image contains binaries for one architecture.
-   - Portability across architectures needs multi-platform images (one tag, one variant per architecture).
+   - Portability across architectures needs multi-platform images (one tag, one variant per architecture). Check it yourself in [tutorial 01, section 3.1](tutorials/01-docker-basics.md#31-for-which-cpu).
 
-**The Docker components and how they relate**
-   - **Dockerfile:** the blueprint for an image – build instructions, just text on the file system. `docker build` turns it into an image.
-   - **Image:** the blueprint for a container instance (class → object). Never running, layered, contains binaries, libraries and executables. Identified by an immutable ID; names and tags are just pointers to it – one image can have several tags (`nginx:latest`, `nginx:1`, ...).
-   - **Container:** the live instance – a process running on the CPU, using memory. Each container gets its own ID, which is also its hostname.
-   - **Registries:** `docker pull` and `docker push` move images between the local image store (`docker images`) and a remote registry such as Docker Hub. `docker run` pulls an image only if it is not available locally.
-   - Useful commands: `docker images`, `docker ps -a`, `docker logs <id>`, `docker tag`, `docker rmi` (removes a tag, or the image once no tag is left), `docker rm`.
-   - Immutability: you cannot change an image, but you can build a new image on top of it (`FROM <your-image>`).
+**The Docker components and how they relate** – [tutorial 01](tutorials/01-docker-basics.md)
+   - **Dockerfile:** the blueprint for an image – build instructions, just text. `docker build` turns it into an image.
+   - **Image:** the blueprint for a container (class → object). Never running, layered, immutable. Tags are pointers to an image ID – one image can have several tags.
+   - **Container:** the live instance – a process on the CPU, using memory, with its own ID and hostname.
+   - **Registry:** `docker pull` and `docker push` move images between the local image store and a registry such as Docker Hub. `docker run` pulls only if the image is missing.
 
-**A REST service in a container** (FastAPI shopping list, generated with Copilot)
-   - Endpoints: `/hello` (returns the hostname), `/crash` (simulated error), CRUD on `/shopping-list` – create, read, update, delete.
-   - First run locally as a plain process and test with `curl`; then containerize.
-   - Dockerfile instructions: `FROM` (base image), `WORKDIR`, `COPY` (from the build context into the image), `RUN` (execute at build time, e.g. `pip install`), `EXPOSE`, `CMD` (what `docker run` executes).
-   - The build context is the directory passed to `docker build`. `COPY` can only see files in there: `docker build -f code/Dockerfile-backend -t backend:v1 code/backend-fastapi`.
-   - Delete `main.py` locally: the local process no longer starts, the container still does – the file is part of the image.
-   - **Port mapping:** the app listens on port 8000 *inside* the container; `curl localhost:8000` fails from outside. `docker run -p 8000:8000 ...` publishes it.
-   - Two versions in parallel: `backend:v1` on port 8000 and `backend:v2` on port 8001 (`-p 8001:8000`), both listening on 8000 inside – the basis for blue/green.
-   - Other languages, same pattern: Spring Boot, Quarkus, Go and Rust use **multi-stage builds** – a build stage compiles, a slim runtime stage only gets the result (e.g. a JAR on a JRE). Running as a non-root user is good practice.
+**A REST service in a container** – [tutorial 02](tutorials/02-rest-api-in-a-container.md), code in [`code/`](code/)
+   - A FastAPI shopping list: first as a local process, then in a container.
+   - The Dockerfile instructions, the build context, and why the code keeps working when the source file is gone.
+   - Port mapping: why `curl` fails without `-p`, and two versions side by side on different host ports – the basis for blue/green.
+   - Other languages, same pattern: Spring Boot, Quarkus, Go and Rust use **multi-stage builds** – a build stage compiles, a slim runtime stage only gets the result. Running as a non-root user is good practice.
 
 ### **Homework**
 
@@ -368,15 +362,11 @@ By the end of this lecture, students will be able to:
    - The demo code is in [`code/`](code/), step-by-step walkthroughs are in [`tutorials/`](tutorials/). They follow the lecture – if containers are new to you, do them.
    - Last week in ten minutes ([tutorial 02](tutorials/02-rest-api-in-a-container.md)): the FastAPI shopping list as a local process, tested with `curl`, then Dockerfile, `docker build`, `docker run -p 8000:8000`.
 
-**Looking inside containers** ([tutorial 03](tutorials/03-looking-inside-containers.md))
-   - `docker run alpine:3.22` or `docker run ubuntu` starts and exits right away: the default command is a shell, and without a terminal it has no input and ends.
-   - A command after the image name replaces the default command: `docker run ubuntu env`, `ls`, `whoami` (`root` inside, `codespace` outside). Each run creates a new container that exits after the command.
-   - `-i` keeps the input open, `-t` gives a terminal: `docker run -it ubuntu bash` opens a shell inside the container. The hostname is the container ID, `/etc/os-release` shows Ubuntu. `exit` ends the shell – and the container, because the shell is its main process.
-   - `docker exec` runs an additional process in a *running* container: `docker run` takes an image and creates a container, `docker exec` takes a running container. With `--name web` you can use the name instead of the ID: `docker exec web ps` shows the nginx master and worker processes, `docker exec -it web sh` opens a shell, and `ps` inside also shows that shell.
-   - Change the start page in the running nginx container: `curl` shows the change immediately. `docker diff web` lists what changed in the container's writable layer. A second container from the same image shows the original page. Leaving the `exec` shell with `exit` does not stop the container – nginx is still process 1.
-   - `docker commit web my-nginx:v1` turns the container's state into a new image (slightly smaller: the new `index.html` is shorter than the default page). `docker history` shows only an anonymous layer for it. The same change in a Dockerfile (`COPY index.html ...`) shows up as a readable, reproducible step – the Dockerfile is the default way to build images.
-   - `docker history` on the shopping API image: the layers of the Python base image at the bottom, our steps on top. `COPY` and `RUN` add files and have a size; `EXPOSE` and `CMD` only change metadata and show `0B`.
-   - Options go before the image name: `docker run -d -p 8080:80 --name newweb my-nginx:v1`.
+**Looking inside containers** – [tutorial 03](tutorials/03-looking-inside-containers.md)
+   - Why a container from `alpine` or `ubuntu` exits right away, and what `-i`, `-t` and a command after the image name change.
+   - `docker run` creates a new container, `docker exec` runs an extra process in a running one – and why `exit` stops the container in one case, but not in the other.
+   - The writable layer: a change inside a running nginx, made visible with `docker diff`, kept by `stop`/`start`, gone with `rm`.
+   - `docker commit` vs. a Dockerfile, compared with `docker history`.
 
 **Networks, storage and Compose** (slides)
    - Containers are isolated from each other. `docker network create`, `docker network connect <network> <container>`, or `--network` with `docker run`. `bridge` is the default driver. `docker inspect` works for containers, images and networks.
@@ -386,18 +376,16 @@ By the end of this lecture, students will be able to:
    - A Dockerfile can declare a mount point (`VOLUME`), but not a network – networks belong to running containers, not to an image.
    - **Docker Compose** describes containers, networks and volumes of an application in one YAML file. It does nothing you could not do with `docker` commands, but replaces a sequence of error-prone steps with `docker compose up`. A **service** describes how to run a container; Compose starts one or more containers from it.
 
-**Frontend and backend** ([tutorial 04](tutorials/04-container-networking.md))
-   - The Flask frontend in [`code/frontend-flask`](code/frontend-flask/) calls the backend at `BACKEND_URL`, default `http://127.0.0.1:8000`.
-   - Frontend as a local process, backend in a container with `-p 8000:8000`: it works. Items added with `curl` appear in the frontend – the state is in the backend, the frontend only reads and changes it. A wrong port in `BACKEND_URL` → "Could not reach backend".
-   - `docker stop` and `docker start` keep the container's file system and configuration, but the process starts fresh – the in-memory shopping list is empty again.
-   - Frontend in a container with `BACKEND_URL=http://127.0.0.1:8000`: fails, because `127.0.0.1` is now the frontend container itself. With `http://backend:8000` on the default `bridge` network: the name cannot be resolved – the default bridge has no name resolution for containers.
-   - Slim images have no `ping`, `curl` or `nc`. Instead of installing tools in a running container, use a separate **toolbox container** ([`code/toolbox`](code/toolbox/): Alpine with curl, ping, nslookup, netcat) in the same network.
-   - `docker network create shop-net`, `docker network connect shop-net backend`, `docker network inspect shop-net` shows the connected containers and their IP addresses. On a user-defined network, the container name is a DNS name.
-   - `docker build` failed with "parent snapshot ... does not exist": a broken build cache, fixed with `docker builder prune`.
+**Frontend and backend** – [tutorial 04](tutorials/04-container-networking.md)
+   - The Flask frontend as a local process first: it reaches the backend container through the published port, and items added with `curl` show up in the frontend – the state is in the backend.
+   - The frontend in a container: `127.0.0.1` is now the container itself, and on the default network the name `backend` does not resolve.
+   - Slim images have no network tools – a separate toolbox container brings them along.
+   - A network of your own: containers find each other by name, and the backend needs no published port any more.
 
 **When the environment is broken**
    - In the codespace used in class, the names resolved (`nslookup backend` worked), but `ping`, `curl` and `nc` all timed out – with plain `docker` commands and with Compose. A new codespace with the same code worked right away.
    - So the commands were right; the Docker network setup inside that codespace was broken. If you see something like this: push your code and create a new codespace (or run "Codespaces: Rebuild Container").
+   - Before that, `docker build` had failed with "parent snapshot ... does not exist": a broken build cache, fixed with `docker builder prune`.
 
 **Docker Compose live** ([tutorial 06](tutorials/06-docker-compose.md))
    - [`code/compose.yaml`](code/compose.yaml): `backend` and `frontend`, each with `build:`, the frontend with `ports`, `environment` and `depends_on`.

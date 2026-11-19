@@ -107,10 +107,10 @@ while true; do curl -s localhost:8000/hello; echo; sleep 1; done
 
 > **Output**
 > ```text
-> {{"message":"Good Morning!","hostname":"dc8c807d8d1f"}}
-> {{"message":"Good Morning!","hostname":"229c8f66aa6a"}}
-> {{"message":"Good Morning!","hostname":"dc8c807d8d1f"}}
-> {{"message":"Good Morning!","hostname":"229c8f66aa6a"}}
+> {"message":"Good Morning!","hostname":"dc8c807d8d1f"}
+> {"message":"Good Morning!","hostname":"229c8f66aa6a"}
+> {"message":"Good Morning!","hostname":"dc8c807d8d1f"}
+> {"message":"Good Morning!","hostname":"229c8f66aa6a"}
 > ```
 
 The hostname alternates: the proxy sends each request to the next instance – *round robin*.

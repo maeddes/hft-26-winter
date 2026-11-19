@@ -6,6 +6,8 @@ This walkthrough covers the Docker basics from the lectures on 30 Oct and 6 Nov:
 
 Every code block contains **exactly one command** – copy it, paste it, run it, then compare with the expected output. Outputs will differ in IDs, timestamps and versions; that is fine.
 
+Take your time: after almost every step you look again with `docker ps`, `docker ps -a` or `docker images` and compare with what you saw before. That is how the commands stick, and how you see what each one changed.
+
 ### 1.1 Prerequisites
 
 Recommended: a GitHub Codespace. Open this repository on GitHub, click **Code → Codespaces → Create codespace on main**. Docker is preinstalled.
@@ -66,13 +68,25 @@ Should display output like:
 > docker.io/library/hello-world:latest
 > ```
 
-Without a tag, Docker uses `latest`. Pull a second image, this time with an explicit tag:
+Without a tag, Docker uses `latest`. List the images in your local image store:
+
+```bash
+docker images
+```
+
+> **Output**
+> ```text
+> IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
+> hello-world:latest   c567b231f656       25.9kB         9.49kB
+> ```
+
+One image. Pull a second one, this time with an explicit tag:
 
 ```bash
 docker pull alpine:3.22
 ```
 
-List the images in your local image store:
+Look again:
 
 ```bash
 docker images
@@ -87,7 +101,47 @@ Should display output like:
 > hello-world:latest   c567b231f656       25.9kB         9.49kB
 > ```
 
-Alpine is a minimal Linux distribution – just a few megabytes.
+Two images. Alpine is a minimal Linux distribution – just a few megabytes. Pull it once more:
+
+```bash
+docker pull alpine:3.22
+```
+
+> **Output**
+> ```text
+> 3.22: Pulling from library/alpine
+> Digest: sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+> Status: Image is up to date for alpine:3.22
+> docker.io/library/alpine:3.22
+> ```
+
+Nothing was downloaded: the image is already in your local image store.
+
+### 3.1 For which CPU?
+
+An image contains binaries – and binaries are built for one CPU architecture. Ask the image:
+
+```bash
+docker image inspect alpine:3.22 --format '{{.Os}}/{{.Architecture}}'
+```
+
+> **Output**
+> ```text
+> linux/amd64
+> ```
+
+And your machine:
+
+```bash
+uname -m
+```
+
+> **Output**
+> ```text
+> x86_64
+> ```
+
+`x86_64` and `amd64` are two names for the same thing. On an Apple Silicon Mac you see `linux/arm64` and `arm64`: `docker pull` picked the variant that fits your machine. That only works because `alpine` is published for several architectures – an image you build yourself exists for one architecture only, unless you build it for several.
 
 ## 4. Run containers from existing images
 
@@ -135,6 +189,33 @@ The container still exists, but it has exited: it ran its command `/hello`, prin
 
 **Your CONTAINER ID and NAME will be different.** Docker generates both for every new container – the ID as a random hash, the name from an adjective and the name of a scientist. All IDs and names in this tutorial are examples.
 
+Run the same image again:
+
+```bash
+docker run hello-world
+```
+
+Look again:
+
+```bash
+docker ps -a
+```
+
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE         COMMAND    CREATED          STATUS                      PORTS     NAMES
+> 2c41d8e07a3b   hello-world   "/hello"   5 seconds ago    Exited (0) 4 seconds ago              brave_noether
+> 70732510b6f7   hello-world   "/hello"   1 minute ago     Exited (0) 1 minute ago               infallible_torvalds
+> ```
+
+Two containers from one image. Every `docker run` creates a **new** container. And the images?
+
+```bash
+docker images
+```
+
+Still the same two. Running containers does not change images.
+
 Now run Alpine without any further arguments:
 
 ```bash
@@ -151,7 +232,8 @@ docker ps -a
 > ```text
 > CONTAINER ID   IMAGE         COMMAND     CREATED          STATUS                      PORTS     NAMES
 > 5e3a1c9d8b27   alpine:3.22   "/bin/sh"   5 seconds ago    Exited (0) 4 seconds ago              quirky_lovelace
-> 70732510b6f7   hello-world   "/hello"    1 minute ago     Exited (0) 1 minute ago               infallible_torvalds
+> 2c41d8e07a3b   hello-world   "/hello"    1 minute ago     Exited (0) 1 minute ago               brave_noether
+> 70732510b6f7   hello-world   "/hello"    2 minutes ago    Exited (0) 2 minutes ago              infallible_torvalds
 > ```
 
 A container was created and started. Its command is `/bin/sh`, the default command defined in the Alpine image. A shell without anyone typing into it has nothing to do – so it exited immediately.
@@ -176,7 +258,8 @@ docker ps -a
 > CONTAINER ID   IMAGE         COMMAND                  CREATED          STATUS                      PORTS     NAMES
 > 87dd75f6889b   alpine:3.22   "echo 'Hello from in…"   5 seconds ago    Exited (0) 4 seconds ago              hungry_dhawan
 > 5e3a1c9d8b27   alpine:3.22   "/bin/sh"                1 minute ago     Exited (0) 1 minute ago               quirky_lovelace
-> 70732510b6f7   hello-world   "/hello"                 2 minutes ago    Exited (0) 2 minutes ago              infallible_torvalds
+> 2c41d8e07a3b   hello-world   "/hello"                 2 minutes ago    Exited (0) 2 minutes ago              brave_noether
+> 70732510b6f7   hello-world   "/hello"                 3 minutes ago    Exited (0) 3 minutes ago              infallible_torvalds
 > ```
 
 Same image, different command: this time the container ran `echo` instead of `/bin/sh`.
@@ -196,7 +279,13 @@ docker run --rm alpine:3.22 cat /etc/os-release
 > ...
 > ```
 
-`--rm` removes the container as soon as it exits – it will not show up in `docker ps -a`.
+`--rm` removes the container as soon as it exits. Check it:
+
+```bash
+docker ps -a
+```
+
+The same four containers as before – no new one for `cat`.
 
 Now compare the kernel version inside a container ...
 
@@ -226,6 +315,7 @@ docker ps -aq
 > ```text
 > 87dd75f6889b
 > 5e3a1c9d8b27
+> 2c41d8e07a3b
 > 70732510b6f7
 > ```
 
@@ -240,7 +330,8 @@ docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
 > CONTAINER ID   NAMES                 STATUS
 > 87dd75f6889b   hungry_dhawan         Exited (0) 3 minutes ago
 > 5e3a1c9d8b27   quirky_lovelace       Exited (0) 4 minutes ago
-> 70732510b6f7   infallible_torvalds   Exited (0) 5 minutes ago
+> 2c41d8e07a3b   brave_noether         Exited (0) 5 minutes ago
+> 70732510b6f7   infallible_torvalds   Exited (0) 6 minutes ago
 > ```
 
 Only the stopped ones:
@@ -270,7 +361,8 @@ docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
 > **Output**
 > ```text
 > CONTAINER ID   NAMES                 STATUS
-> 70732510b6f7   infallible_torvalds   Exited (0) 6 minutes ago
+> 2c41d8e07a3b   brave_noether         Exited (0) 6 minutes ago
+> 70732510b6f7   infallible_torvalds   Exited (0) 7 minutes ago
 > ```
 
 The IDs and names in this tutorial are examples – yours are different, so copying `87dd` or `quirky_lovelace` will fail with `No such container`.
@@ -291,6 +383,10 @@ Should display output like:
 
 > **Output**
 > ```text
+> Unable to find image 'nginx:1.29-alpine' locally
+> 1.29-alpine: Pulling from library/nginx
+> ...
+> Status: Downloaded newer image for nginx:1.29-alpine
 > /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
 > ...
 > 2026/11/07 10:10:00 [notice] 1#1: nginx/1.29.3
@@ -310,7 +406,13 @@ docker ps
 > 3f9c2a7b1d4e   nginx:1.29-alpine   "/docker-entrypoint.…"   20 seconds ago   Up 19 seconds   80/tcp    eager_hopper
 > ```
 
-Running, listening on port `80/tcp`. Try to reach it:
+Running, listening on port `80/tcp`. You never ran `docker pull nginx` – `docker run` pulled the image because it was missing (first lines of the output in the first terminal). Look:
+
+```bash
+docker images
+```
+
+Three images now. Try to reach nginx:
 
 ```bash
 curl localhost:80
@@ -407,6 +509,20 @@ Still no connection – running in the background does not change the isolation.
 docker stop b81e
 ```
 
+Look again:
+
+```bash
+docker ps
+```
+
+Empty.
+
+```bash
+docker ps -a
+```
+
+Both nginx containers are `Exited` now – one stopped with Ctrl+C, one with `docker stop`.
+
 ### 6.3 Publish the port
 
 Start a new container and publish container port 80 as port 8080 on your machine (`-p <host-port>:<container-port>`):
@@ -458,6 +574,19 @@ Stop it:
 docker stop c4d7
 ```
 
+And try again:
+
+```bash
+curl localhost:8080
+```
+
+> **Output**
+> ```text
+> curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
+> ```
+
+The port mapping belongs to the container: no running container, no port.
+
 ### 6.4 Give it a name
 
 Looking up IDs gets tedious. Start one more container, this time with a name:
@@ -476,7 +605,49 @@ docker ps
 > 9b2789d81f72   nginx:1.29-alpine   "/docker-entrypoint.…"   5 seconds ago   Up 4 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web
 > ```
 
-The `NAMES` column shows `web` instead of a random name. From now on you can use the name instead of the ID:
+The `NAMES` column shows `web` instead of a random name. A name exists only once. Try to start a second container with the same name:
+
+```bash
+docker run -d --name web -p 8081:80 nginx:1.29-alpine
+```
+
+> **Output**
+> ```text
+> docker: Error response from daemon: Conflict. The container name "/web" is already in use by container "fd31d79dd738...". You have to remove (or rename) that container to be able to reuse that name.
+> ```
+
+A port on your machine also exists only once. Try a different name, but the same port:
+
+```bash
+docker run -d --name web2 -p 8080:80 nginx:1.29-alpine
+```
+
+> **Output**
+> ```text
+> 76315edb2f22...
+> docker: Error response from daemon: failed to set up container networking: ... Bind for 0.0.0.0:8080 failed: port is already allocated
+> ```
+
+An error – but Docker printed an ID first. Look:
+
+```bash
+docker ps -a --filter name=web
+```
+
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE               COMMAND                  CREATED          STATUS         PORTS                                     NAMES
+> 76315edb2f22   nginx:1.29-alpine   "/docker-entrypoint.…"   5 seconds ago    Created                                                  web2
+> fd31d79dd738   nginx:1.29-alpine   "/docker-entrypoint.…"   30 seconds ago   Up 29 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp   web
+> ```
+
+`web2` was **created**, but could not start. `docker run` is two steps: create the container, then start it. Remove the broken one:
+
+```bash
+docker rm web2
+```
+
+From now on you can use the name instead of the ID:
 
 ```bash
 docker logs web
@@ -485,6 +656,12 @@ docker logs web
 ```bash
 docker stop web
 ```
+
+```bash
+curl localhost:8080
+```
+
+Fails – `web` is stopped.
 
 It is not running any more, but it still exists – together with the containers from before:
 
@@ -533,6 +710,12 @@ docker rm -f web
 
 ## 7. Tags and image IDs
 
+Look at your images:
+
+```bash
+docker images
+```
+
 Give an existing image a second name:
 
 ```bash
@@ -563,6 +746,12 @@ docker rmi my-alpine:demo
 > ```text
 > Untagged: my-alpine:demo
 > ```
+
+Look again:
+
+```bash
+docker images
+```
 
 Only the name is gone – `alpine:3.22` and the image itself are still there.
 
@@ -626,7 +815,30 @@ docker images
 > ...
 > ```
 
-Run it:
+Run it – first without `--rm`:
+
+```bash
+docker run hello-container:v1
+```
+
+> **Output**
+> ```text
+> Hello from my first image
+> ```
+
+Look:
+
+```bash
+docker ps -a --filter ancestor=hello-container:v1
+```
+
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE                COMMAND            CREATED         STATUS                     PORTS     NAMES
+> 18a0a2c0569e   hello-container:v1   "cat /hello.txt"   5 seconds ago   Exited (0) 4 seconds ago             adoring_ellis
+> ```
+
+The COMMAND is the `CMD` from your Dockerfile. Now with `--rm`:
 
 ```bash
 docker run --rm hello-container:v1
@@ -636,6 +848,12 @@ docker run --rm hello-container:v1
 > ```text
 > Hello from my first image
 > ```
+
+```bash
+docker ps -a --filter ancestor=hello-container:v1
+```
+
+Still only one container – the `--rm` one is already gone.
 
 ## 9. Images are immutable – build a new version
 
@@ -670,6 +888,19 @@ docker run --rm hello-container:v2
 > ```text
 > Hello from version 2
 > ```
+
+And `v1` once more:
+
+```bash
+docker run --rm hello-container:v1
+```
+
+> **Output**
+> ```text
+> Hello from my first image
+> ```
+
+`v2` did not replace `v1` – both exist side by side.
 
 ```bash
 docker images
@@ -729,7 +960,20 @@ Remove several at once:
 docker rm tender_curie sharp_babbage
 ```
 
-Remove **all** stopped containers in one go (confirm with `y`):
+Try to remove the nginx image now:
+
+```bash
+docker rmi nginx:1.29-alpine
+```
+
+> **Output**
+> ```text
+> Error response from daemon: conflict: unable to remove repository reference "nginx:1.29-alpine" (must force) - container 8876e5feb746 is using its referenced image 7f7dcd27f920
+> ```
+
+A stopped container still uses its image. The containers go first.
+
+Remove **all** stopped containers in one go (confirm with `y`). On your own machine, this also removes stopped containers of other projects – look at `docker ps -a` first:
 
 ```bash
 docker container prune
@@ -753,8 +997,6 @@ Now the images. Remove your own images:
 docker rmi hello-container:v1 hello-container:v2
 ```
 
-An image cannot be removed while a container still uses it – even a stopped one. That is why the containers go first.
-
 Remove the pulled images, too:
 
 ```bash
@@ -772,6 +1014,7 @@ docker images
 | `docker version` | shows client and server versions |
 | `docker pull <image>:<tag>` | downloads an image from a registry |
 | `docker images` | lists images in the local image store |
+| `docker image inspect <image> --format '{{.Os}}/{{.Architecture}}'` | shows for which platform an image was built |
 | `docker run <image>` | creates and starts a container (pulls the image if it is missing) |
 | `docker run --rm` / `-d` / `-p` / `--name` | remove on exit / background / publish a port / name it |
 | `docker ps` / `docker ps -a` | lists running / all containers |

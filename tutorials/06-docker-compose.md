@@ -208,7 +208,7 @@ docker compose exec frontend getent hosts backend
 Add an item through the frontend:
 
 ```bash
-curl -X POST localhost:5000/items -d "name=apples&amount=3" -o /dev/null -w "%{{http_code}}\n"
+curl -X POST localhost:5000/items -d "name=apples&amount=3" -o /dev/null -w "%{http_code}\n"
 ```
 
 ```bash
@@ -248,7 +248,7 @@ curl backend:8000/shopping-list
 
 > **Output**
 > ```text
-> [{{"name":"apples","amount":3}}]
+> [{"name":"apples","amount":3}]
 > ```
 
 ```bash

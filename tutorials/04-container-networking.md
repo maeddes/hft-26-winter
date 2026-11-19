@@ -2,18 +2,20 @@
 
 ## 1. About
 
-The shopping list in [`code/`](../code/) has two parts: a REST **backend** (FastAPI) and a web **frontend** (Flask) that calls the backend. In this walkthrough you run both in containers – and find out why they cannot talk to each other at first, how a Docker network changes that, and why the backend does not need a published port at the end. A third container with network tools helps you look around.
+The shopping list in [`code/`](../code/) has two parts: a REST **backend** (FastAPI) and a web **frontend** (Flask) that calls the backend. In this walkthrough you first run the frontend as a plain process, then both in containers – and find out why they cannot talk to each other at first, how a Docker network changes that, and why the backend does not need a published port at the end. A third container with network tools helps you look around.
 
 At the end you have two connected containers and the shopping list in your browser. [06 – Docker Compose](06-docker-compose.md) builds exactly this setup again, with one file.
 
-Every code block contains **exactly one command**. Some commands run *inside* a container – this is marked in the text.
+Take your time: after almost every step you look again – `docker ps`, `docker network inspect`, `docker container inspect` – and compare with what you saw before. That is how you see what each command changed.
+
+Every code block contains **exactly one command**. Some commands run *inside* a container – this is marked in the text. IDs and addresses in the outputs are examples; yours will differ.
 
 ### 1.1 Prerequisites
 
 - [02 – A REST API in a Container](02-rest-api-in-a-container.md) and [03 – Looking Inside Containers](03-looking-inside-containers.md)
 - A GitHub Codespace on this repository. Run all commands from the **repository root**, where the `code/` folder is.
 
-> **On a Mac:** port 5000 is often taken by the AirPlay Receiver. If `-p 5000:5000` fails with "address already in use", use `-p 5001:5000` and `localhost:5001` instead.
+> **On a Mac:** port 5000 is often taken by the AirPlay Receiver. If `-p 5000:5000` fails with "address already in use", use `-p 5001:5000` and `localhost:5001` instead – and `PORT=5001 python app.py` in section 3.
 
 ## 2. Build the two images
 
@@ -31,12 +33,25 @@ docker build -t shopping-frontend code/frontend-flask
 docker images
 ```
 
-## 3. Start them separately
+> **Output**
+> ```text
+> IMAGE                      ID             DISK USAGE   CONTENT SIZE   EXTRA
+> shopping-backend:latest    05a800c80efc        169MB             0B
+> shopping-frontend:latest   684567b5e047        163MB             0B
+> ```
 
-Start the backend and publish its port:
+## 3. The frontend as a local process
+
+Before any container talks to another one, start with something you know from tutorial 02: one container, one plain process.
+
+Start the backend in a container and publish its port:
 
 ```bash
 docker run -d --name backend -p 8000:8000 shopping-backend
+```
+
+```bash
+docker ps
 ```
 
 ```bash
@@ -45,29 +60,174 @@ curl localhost:8000/hello
 
 > **Output**
 > ```text
-> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> {"message":"Good Morning!","hostname":"08d4b6c5f70c"}
 > ```
 
-Start the frontend. It needs to know where the backend is – the environment variable `BACKEND_URL` tells it:
+The frontend runs as a normal Python process. Open a **second terminal** and change into its folder:
+
+```bash
+cd code/frontend-flask
+```
+
+```bash
+python3 -m venv .venv
+```
+
+```bash
+source .venv/bin/activate
+```
+
+```bash
+pip install -r requirements.txt
+```
+
+```bash
+python app.py
+```
+
+> **Output**
+> ```text
+>  * Serving Flask app 'app'
+>  * Running on all addresses (0.0.0.0)
+>  * Running on http://127.0.0.1:5000
+> ...
+> ```
+
+The frontend now waits for requests on port 5000 and blocks this terminal. Where does it look for the backend? Without configuration, at `http://127.0.0.1:8000` – the default in `app.py`. Back in the **first terminal**, ask the frontend which backend answered:
+
+```bash
+curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
+```
+
+> **Output**
+> ```text
+> Server: <strong>08d4b6c5f70c
+> ```
+
+The hostname of the backend container. The frontend process reached it through the published port 8000 – exactly like your `curl`. Open port 5000 in the **Ports** tab, too: the shopping list, empty.
+
+Add an item – not through the frontend, but directly at the backend:
+
+```bash
+curl -X POST localhost:8000/shopping-list -H "Content-Type: application/json" -d '{"name": "kiwis", "amount": 30}'
+```
+
+Now ask the frontend for its page and pick out the items:
+
+```bash
+curl -s localhost:5000 | grep -o 'item-name">[^<]*'
+```
+
+> **Output**
+> ```text
+> item-name">kiwis
+> ```
+
+Reload the browser, too: the kiwis are there. The frontend has no data of its own – it reads and changes what is in the backend.
+
+In the **second terminal**, stop the frontend with **Ctrl+C**. In the first terminal:
+
+```bash
+curl localhost:5000
+```
+
+> **Output**
+> ```text
+> curl: (7) Failed to connect to localhost port 5000 after 0 ms: Couldn't connect to server
+> ```
+
+No frontend. The data is still there:
+
+```bash
+curl localhost:8000/shopping-list
+```
+
+> **Output**
+> ```text
+> [{"name":"kiwis","amount":30}]
+> ```
+
+Now tell the frontend a wrong address. In the **second terminal**:
+
+```bash
+BACKEND_URL=http://127.0.0.1:8001 python app.py
+```
+
+In the first terminal:
+
+```bash
+curl -s localhost:5000 | grep -o "Could not reach backend at [^:]*:[^:]*:[0-9]*"
+```
+
+> **Output**
+> ```text
+> Could not reach backend at http://127.0.0.1:8001
+> ```
+
+The frontend runs, but nothing listens on port 8001. `BACKEND_URL` is how you tell the frontend where the backend is – remember it for the containers. In the **second terminal**, stop the frontend with **Ctrl+C**, leave the virtual environment and go back to the repository root:
+
+```bash
+deactivate
+```
+
+```bash
+cd ../..
+```
+
+## 4. The frontend in a container
+
+Now the frontend goes into a container, too. The backend keeps running. Start the frontend with the address that just worked – `127.0.0.1:8000`:
+
+```bash
+docker run -d --name frontend -p 5000:5000 -e BACKEND_URL=http://127.0.0.1:8000 shopping-frontend
+```
+
+```bash
+docker ps
+```
+
+> **Output**
+> ```text
+> CONTAINER ID   IMAGE               COMMAND                  CREATED          STATUS          PORTS                                         NAMES
+> 530873341cad   shopping-frontend   "gunicorn --bind 0.0…"   5 seconds ago    Up 4 seconds    0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp   frontend
+> 08d4b6c5f70c   shopping-backend    "uvicorn main:app --…"   3 minutes ago    Up 3 minutes    0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   backend
+> ```
+
+Both are up. Reload the page in the browser – it shows an error. On the command line:
+
+```bash
+curl -s localhost:5000 | grep -o "Could not reach backend at [^:]*:[^:]*:[0-9]*"
+```
+
+> **Output**
+> ```text
+> Could not reach backend at http://127.0.0.1:8000
+> ```
+
+The same address that worked a minute ago. But inside a container, `127.0.0.1` is the container itself – the frontend asks *itself* for a backend on port 8000, and there is none. Remove it:
+
+```bash
+docker rm -f frontend
+```
+
+Try the name of the backend container instead:
 
 ```bash
 docker run -d --name frontend -p 5000:5000 -e BACKEND_URL=http://backend:8000 shopping-frontend
 ```
 
-Open port 5000 in the **Ports** tab of your codespace. The page loads – but shows an error. On the command line:
-
 ```bash
-curl -s localhost:5000 | grep -o "Could not reach backend[^<]*"
+curl -s localhost:5000 | grep -o "Failed to resolve[^)]*)"
 ```
 
 > **Output**
 > ```text
-> Could not reach backend at http://backend:8000: HTTPConnectionPool(host=&#39;backend&#39;, port=8000): ... Failed to resolve &#39;backend&#39; ([Errno -2] Name or service not known)
+> Failed to resolve &#39;backend&#39; ([Errno -2] Name or service not known)
 > ```
 
-Both containers are running, both are reachable from your machine – but the frontend cannot find a host called `backend`. Let's look from the inside.
+A different error: the frontend cannot find a host called `backend`. Both containers are running, both are reachable from your machine – but not from each other. Let's look from the inside.
 
-## 4. Inside the backend
+## 5. Inside the backend
 
 Open a shell in the backend container:
 
@@ -109,16 +269,16 @@ python -c "import urllib.request; print(urllib.request.urlopen('http://localhost
 
 > **Output**
 > ```text
-> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> {"message":"Good Morning!","hostname":"08d4b6c5f70c"}
 > ```
 
-Inside the container, `localhost` is the container itself – the app answers on port 8000 without any port mapping. For a closer look at the network we will need proper tools – see section 5.1. Leave the container:
+Inside the container, `localhost` is the container itself – here that is what you want: the app answers on port 8000 without any port mapping. Leave the container:
 
 ```bash
 exit
 ```
 
-## 5. Inside the frontend
+## 6. Inside the frontend
 
 Open a shell in the frontend container:
 
@@ -134,10 +294,23 @@ hostname
 
 > **Output**
 > ```text
-> c248b04ebe93
+> d3b9904f2923
 > ```
 
-The container ID, as you know from tutorial 02. Can this container resolve the name `backend`?
+The container ID, as you know from tutorial 02. Which names does this container know?
+
+```bash
+cat /etc/hosts
+```
+
+> **Output**
+> ```text
+> 127.0.0.1	localhost
+> ...
+> 172.17.0.3	d3b9904f2923
+> ```
+
+`localhost` and itself – nothing else. Can it resolve the name `backend`?
 
 ```bash
 getent hosts backend
@@ -161,7 +334,50 @@ Leave the container:
 exit
 ```
 
-### 5.1 A toolbox container
+## 7. Which network are they in?
+
+Docker has a few networks from the start:
+
+```bash
+docker network ls
+```
+
+> **Output**
+> ```text
+> NETWORK ID     NAME      DRIVER    SCOPE
+> 6b1b0ea7ed68   bridge    bridge    local
+> a7b763ab5af1   host      host      local
+> 6ac666307b88   none      null      local
+> ```
+
+Every container without `--network` lands in `bridge`, the default network. Who is in there?
+
+```bash
+docker network inspect bridge --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+> **Output**
+> ```text
+> backend 172.17.0.2/16
+> frontend 172.17.0.3/16
+> ```
+
+Both – in the same network, with addresses. Now from the point of view of one container – which networks is it in?
+
+```bash
+docker container inspect frontend --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{$net.IPAddress}}{{println}}{{end}}'
+```
+
+> **Output**
+> ```text
+> bridge 172.17.0.3
+> ```
+
+Only `bridge`. Compare the address with the last line of `/etc/hosts` in section 6. (Without `--format`, both `inspect` commands print everything Docker knows about the network or the container – try it.)
+
+So they are in the same network, and still the name does not resolve. Time for proper tools.
+
+### 7.1 A toolbox container
 
 Both images are *slim* – no `ping`, no `nslookup`, no `curl`, no netcat. That is a good thing: an application image should contain the application, not a debugging kit. Instead of installing tools into the frontend or the backend, build a **third image** whose only job is to bring those tools along. It is in the repository:
 
@@ -193,9 +409,9 @@ docker images
 > **Output**
 > ```text
 > IMAGE                      ID             DISK USAGE   CONTENT SIZE   EXTRA
-> shopping-backend:latest    05a800c80efc        169MB          ...
-> shopping-frontend:latest   684567b5e047        163MB          ...
-> toolbox:latest             89af9df4ad44       27.8MB          ...
+> shopping-backend:latest    05a800c80efc        169MB             0B   U
+> shopping-frontend:latest   684567b5e047        163MB             0B   U
+> toolbox:latest             afc05f9117bf       27.8MB             0B
 > ```
 
 About 28 MB – the application images are six times bigger, mostly because of Python. (A ready-made debugging image like `nicolaka/netshoot` brings even more tools, but weighs over 600 MB.) Start a toolbox container:
@@ -224,31 +440,88 @@ ping -c 2 backend
 > ping: backend: Name does not resolve
 > ```
 
-The same result as from the frontend: on Docker's **default network**, containers cannot find each other by name. Leave the toolbox – thanks to `--rm` it is removed:
+The same result as from the frontend. Now use the address of the backend from `docker network inspect bridge` above:
+
+```bash
+ping -c 2 172.17.0.2
+```
+
+> **Output**
+> ```text
+> PING 172.17.0.2 (172.17.0.2) 56(84) bytes of data.
+> 64 bytes from 172.17.0.2: icmp_seq=1 ttl=64 time=0.085 ms
+> 64 bytes from 172.17.0.2: icmp_seq=2 ttl=64 time=0.160 ms
+> ...
+> ```
+
+```bash
+curl 172.17.0.2:8000/hello
+```
+
+> **Output**
+> ```text
+> {"message":"Good Morning!","hostname":"08d4b6c5f70c"}
+> ```
+
+By address it works. The containers *can* reach each other – the default network just has no name resolution. Addresses change whenever a container is recreated, so they are no way to configure an application. Leave the toolbox – thanks to `--rm` it is removed:
 
 ```bash
 exit
 ```
 
-## 6. A network for both
+## 8. A network for both
 
-Create a network:
+Create a network of your own:
 
 ```bash
 docker network create shop-net
 ```
 
-Connect both running containers to it – no restart needed:
+Look:
+
+```bash
+docker network ls
+```
+
+> **Output**
+> ```text
+> NETWORK ID     NAME       DRIVER    SCOPE
+> 6b1b0ea7ed68   bridge     bridge    local
+> a7b763ab5af1   host       host      local
+> 6ac666307b88   none       null      local
+> 65cdbaa5e64a   shop-net   bridge    local
+> ```
+
+A new network, with the same driver as the default one. Who is in there?
+
+```bash
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+Nobody yet. Connect the backend – while it is running, no restart needed:
 
 ```bash
 docker network connect shop-net backend
 ```
 
+Look again:
+
+```bash
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+> **Output**
+> ```text
+> backend 172.27.0.2/16
+> ```
+
+One member, with an address from a different range than in `bridge`. Connect the frontend:
+
 ```bash
 docker network connect shop-net frontend
 ```
 
-Who is in the network, with which address?
+Look again:
 
 ```bash
 docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
@@ -260,7 +533,7 @@ docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4
 > frontend 172.27.0.3/16
 > ```
 
-And from the point of view of one container – which networks is it in?
+And from the point of view of the frontend – the same command as in section 7:
 
 ```bash
 docker container inspect frontend --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{$net.IPAddress}}{{println}}{{end}}'
@@ -272,9 +545,7 @@ docker container inspect frontend --format '{{range $name, $net := .NetworkSetti
 > shop-net 172.27.0.3
 > ```
 
-The frontend is now in two networks: the default `bridge` and `shop-net`. (Without `--format`, both `inspect` commands print everything Docker knows about the network or the container – try it.)
-
-Reload the page in your browser – the error is gone. On the command line, ask the frontend which backend answered:
+Compare with section 7: the frontend is now in two networks, with one address in each. Reload the page in your browser – the error is gone. On the command line, ask the frontend which backend answered:
 
 ```bash
 curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
@@ -282,12 +553,23 @@ curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
 
 > **Output**
 > ```text
-> Server: <strong>154ad27de4e1
+> Server: <strong>08d4b6c5f70c
 > ```
 
-The hostname of the backend container: the frontend reached it through `shop-net`.
+The hostname of the backend container: the frontend reached it through `shop-net`. Ask the frontend the question from section 6 again:
 
-## 7. From one container to the other
+```bash
+docker exec frontend getent hosts backend
+```
+
+> **Output**
+> ```text
+> 172.27.0.2      backend
+> ```
+
+Now it knows the name – with the address from `shop-net`.
+
+## 9. From one container to the other
 
 Start the toolbox again – this time directly in `shop-net`:
 
@@ -295,7 +577,7 @@ Start the toolbox again – this time directly in `shop-net`:
 docker run -it --rm --name toolbox --network shop-net toolbox
 ```
 
-**Inside the toolbox**, look up the backend:
+**Inside the toolbox**, look up the backend – the same command as in section 7.1:
 
 ```bash
 nslookup backend
@@ -329,7 +611,7 @@ ping -c 2 backend
 > ...
 > ```
 
-Call the backend's REST API:
+Call the backend's REST API – by name this time:
 
 ```bash
 curl backend:8000/hello
@@ -337,7 +619,7 @@ curl backend:8000/hello
 
 > **Output**
 > ```text
-> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> {"message":"Good Morning!","hostname":"08d4b6c5f70c"}
 > ```
 
 Check only whether a port is open, with netcat – the backend on 8000, the frontend on 5000:
@@ -364,37 +646,45 @@ printf "GET /hello HTTP/1.0\r\n\r\n" | nc -w 3 backend 8000
 > **Output**
 > ```text
 > HTTP/1.1 200 OK
-> date: Thu, 12 Nov 2026 21:01:07 GMT
+> date: Thu, 19 Nov 2026 17:07:05 GMT
 > server: uvicorn
 > content-length: 53
 > content-type: application/json
 > Connection: close
 >
-> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> {"message":"Good Morning!","hostname":"08d4b6c5f70c"}
 > ```
 
 That is all an HTTP request is: a few lines of text over a TCP connection.
 
-Leave the toolbox open, and in a **second terminal** look at the network – the toolbox shows up as a third member:
+Leave the toolbox open, and in a **second terminal** look at the network:
 
 ```bash
-docker network inspect shop-net --format "{{{{range .Containers}}}}{{{{.Name}}}} {{{{.IPv4Address}}}}{{{{println}}}}{{{{end}}}}"
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
 ```
 
 > **Output**
 > ```text
 > backend 172.27.0.2/16
-> frontend 172.27.0.3/16
 > toolbox 172.27.0.4/16
+> frontend 172.27.0.3/16
 > ```
 
-Back in the first terminal, leave the toolbox:
+The toolbox is the third member. Back in the first terminal, leave the toolbox:
 
 ```bash
 exit
 ```
 
-### 7.1 Between frontend and backend
+Look again in the second terminal:
+
+```bash
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+Two members – `--rm` removed the toolbox, and with it its place in the network.
+
+### 9.1 Between frontend and backend
 
 The toolbox is only for looking around – frontend and backend talk to each other directly. Check it with the tools they have: from the frontend to the backend …
 
@@ -404,10 +694,10 @@ docker exec frontend python -c "import requests; print(requests.get('http://back
 
 > **Output**
 > ```text
-> {"message":"Good Morning!","hostname":"154ad27de4e1"}
+> {"message":"Good Morning!","hostname":"08d4b6c5f70c"}
 > ```
 
-… and the other way round. Open a shell in the backend:
+Compare with section 6: the same command failed there. … and the other way round. Open a shell in the backend:
 
 ```bash
 docker exec -it backend sh
@@ -439,7 +729,7 @@ The backend reaches the frontend by name, too.
 exit
 ```
 
-## 8. The backend does not need a published port
+## 10. The backend does not need a published port
 
 The backend is still published on port 8000 – but only the frontend needs to reach it, and it does so through `shop-net`. Remove the backend container:
 
@@ -447,11 +737,47 @@ The backend is still published on port 8000 – but only the frontend needs to r
 docker rm -f backend
 ```
 
-Start a new one **without** `-p`, and put it into `shop-net` right away:
+Look at the network:
+
+```bash
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+> **Output**
+> ```text
+> frontend 172.27.0.3/16
+> ```
+
+And at the frontend:
+
+```bash
+curl -s localhost:5000 | grep -o "Failed to resolve[^)]*)"
+```
+
+> **Output**
+> ```text
+> Failed to resolve &#39;backend&#39; ([Errno -2] Name or service not known)
+> ```
+
+The error from section 4 is back: no container, no name. Start a new backend **without** `-p`, and put it into `shop-net` right away:
 
 ```bash
 docker run -d --name backend --network shop-net shopping-backend
 ```
+
+Look at the network again:
+
+```bash
+docker network inspect shop-net --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+> **Output**
+> ```text
+> frontend 172.27.0.3/16
+> backend 172.27.0.2/16
+> ```
+
+Back in the network. From outside, the backend is no longer reachable:
 
 ```bash
 curl localhost:8000/hello
@@ -462,7 +788,7 @@ curl localhost:8000/hello
 > curl: (7) Failed to connect to localhost port 8000 after 0 ms: Couldn't connect to server
 > ```
 
-From outside, the backend is no longer reachable. Compare the ports of the two containers:
+Compare the ports of the two containers:
 
 ```bash
 docker ps --format "table {{.Names}}\t{{.Ports}}"
@@ -475,7 +801,24 @@ docker ps --format "table {{.Names}}\t{{.Ports}}"
 > frontend   0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp
 > ```
 
-But the frontend still reaches it. Add an item through the frontend – this is the same form the web page uses:
+But the frontend still reaches it:
+
+```bash
+curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"
+```
+
+> **Output**
+> ```text
+> Server: <strong>d7480e0bc6f1
+> ```
+
+A different hostname than before – a new container with a new ID:
+
+```bash
+docker ps --filter name=backend
+```
+
+The frontend did not notice: it asks for the name `backend`, not for an ID or an address. Add an item through the frontend – this is the same form the web page uses:
 
 ```bash
 curl -X POST localhost:5000/items -d "name=apples&amount=3" -o /dev/null -w "%{http_code}\n"
@@ -489,31 +832,34 @@ curl -X POST localhost:5000/items -d "name=apples&amount=3" -o /dev/null -w "%{h
 `302` is a redirect back to the start page – the item was saved. Open the page in your browser, or check on the command line:
 
 ```bash
-curl -s localhost:5000 | grep -o "apples"
+curl -s localhost:5000 | grep -o 'item-name">[^<]*'
 ```
 
 > **Output**
 > ```text
-> apples
+> item-name">apples
 > ```
+
+Only the apples – the kiwis from section 3 lived in the memory of the old backend container. More on that in [08 – State](08-state.md).
 
 The request went from your machine to the frontend, and from the frontend through `shop-net` to the backend – which nobody outside can reach. This is the usual setup: only the part users talk to is published.
 
-Notice that the shopping list was empty before you added the apples: the new backend container started with an empty memory. More on that in [08 – State](08-state.md).
-
-## 9. Overview
+## 11. Overview
 
 | From | To | Address | Works? |
 |---|---|---|---|
 | your machine | backend, published `-p 8000:8000` | `localhost:8000` | yes |
 | your machine | backend, not published | `localhost:8000` | no |
-| inside a container | the container itself | `localhost:8000` | yes |
+| process on your machine | backend, published | `127.0.0.1:8000` | yes |
+| inside a container | the container itself | `localhost` / `127.0.0.1` | yes – but never another container |
 | container, default network | other container | by name | no |
+| container, default network | other container | by IP address | yes – but addresses change |
 | container, same own network | other container | by name | yes – Docker's DNS |
 | container, same own network | other container | container port `backend:8000` | yes – no `-p` needed |
 
 | Command | What it does |
 |---|---|
+| `docker network ls` | lists the networks |
 | `docker network create <name>` | creates a network |
 | `docker network connect <network> <container>` | connects a running container |
 | `docker run --network <name> ...` | starts a container in a network |
@@ -522,7 +868,7 @@ Notice that the shopping list was empty before you added the apples: the new bac
 | `getent hosts <name>` | resolves a hostname (inside a container) |
 | `docker run -it --rm --network <name> toolbox` | a throwaway toolbox with `ping`, `nslookup`, `curl`, `nc` in that network |
 
-## 10. Clean up
+## 12. Clean up
 
 Keep the setup running if you want to continue with [06 – Docker Compose](06-docker-compose.md) right away – it starts by removing it. Otherwise:
 
@@ -532,6 +878,16 @@ docker rm -f frontend backend
 
 ```bash
 docker network rm shop-net
+```
+
+```bash
+docker network ls
+```
+
+`shop-net` is gone; `bridge`, `host` and `none` stay. Remove the virtual environment of section 3:
+
+```bash
+rm -r code/frontend-flask/.venv
 ```
 
 Next: [05 – Cleaning Up](05-cleaning-up.md) · [06 – Docker Compose](06-docker-compose.md)
