@@ -391,7 +391,7 @@ By the end of this lecture, students will be able to:
    - The same frontend/backend setup in one file: `docker compose up` builds, creates the network `shopping_default` and starts both containers; the toolbox can join that network.
 
 **Scaling with a load balancer** – [tutorial 07](tutorials/07-scaling.md)
-   - Two backend replicas behind a Traefik proxy: round robin per request – and why it looks stuck through the frontend.
+   - Two backend replicas behind a Traefik proxy: round robin per request. Through the frontend it looks stuck on one instance – every page calls the backend twice (`/hello` and `/shopping-list`).
    - The service name `backend` resolves to both replicas, but name resolution is no load balancing – the proxy decides per request.
 
 **Outlook: the PVL**

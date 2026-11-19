@@ -2,9 +2,9 @@
 
 ## 1. About
 
-In [06 – Docker Compose](06-docker-compose.md), the frontend talked to exactly one backend. In this walkthrough a **load balancer** sits between them as a third container, and you run several backend instances behind it: you see how the load balancer finds the instances, watch the requests being distributed, scale up and down while everything keeps running, and let an instance crash.
+In [06 – Docker Compose](06-docker-compose.md), the frontend talked to exactly one backend. In this walkthrough a **load balancer** sits between them as a third container, and you run several backend instances behind it: you watch the requests being distributed, add an instance while everything keeps running, and let instances crash – first without any protection, then with Docker restarting them.
 
-After almost every step you look again – `docker compose ps`, `docker network inspect`, and what the load balancer itself knows – and compare with what you saw before.
+After almost every step you look again – `docker compose ps`, `docker network inspect`, a loop of requests – and compare with what you saw before.
 
 Every code block contains **exactly one command**. IDs and addresses in the outputs are examples; yours will differ.
 
@@ -49,7 +49,6 @@ services:
     build: ./backend-fastapi
     deploy:
       replicas: 2
-    restart: on-failure
     labels:
       - traefik.enable=true
       - traefik.http.routers.backend.rule=PathPrefix(`/`)
@@ -68,7 +67,7 @@ services:
 What is new compared to `compose.yaml`:
 
 - **`proxy`** is [Traefik](https://traefik.io), a reverse proxy and load balancer. Note `image:` without `build:` – a published image, as in tutorial 06, section 6.1.
-- **`backend`** runs as **2 replicas** – one service, two containers – and restarts by itself if it crashes (`restart: on-failure`).
+- **`backend`** runs as **2 replicas** – one service, two containers.
 - **`frontend`** no longer talks to `backend` but to `proxy` (`BACKEND_URL: http://proxy:80`). The frontend does not know how many backends there are.
 - The proxy is published on port **8000**, so you can also call the backends through it from the command line. Port **8080** shows Traefik's dashboard.
 
@@ -88,7 +87,7 @@ Nothing in the `proxy` section names the backend. Instead:
 - `--entrypoints.web.address=:80` – Traefik accepts requests on port 80 inside its container (8000 on your machine).
 - `--api.insecure=true` – the dashboard and its API on port 8080, without login. Fine for a demo, not for production.
 
-Every backend container carries the same labels, so Traefik finds all of them – and every new one.
+Every backend container carries the same labels, so Traefik finds all of them – and every new one, and notices when one is gone.
 
 ## 3. Start it
 
@@ -123,25 +122,9 @@ docker network inspect shopping_default --format "{{range .Containers}}{{.Name}}
 > shopping-backend-1 172.27.0.2/16
 > ```
 
-Note the two backend addresses. Open port 5000 in the **Ports** tab – the shopping list works as before. Open port 8080 for the Traefik dashboard.
+Open port 5000 in the **Ports** tab – the shopping list works as before. Open port 8080 for the Traefik dashboard.
 
-## 4. What the load balancer knows
-
-Ask Traefik's API which servers belong to the service `backend`:
-
-```bash
-curl -s localhost:8080/api/http/services/backend@docker | grep -o '"url":"[^"]*"'
-```
-
-> **Output**
-> ```text
-> "url":"http://172.27.0.4:8000"
-> "url":"http://172.27.0.2:8000"
-> ```
-
-Compare with `docker network inspect`: the addresses of the two backend containers, with the port from the label. Traefik found them on its own. (Without `| grep …` you see the full answer, including the health of each server.)
-
-## 5. Watch the load balancer
+## 4. Watch the load balancer
 
 Call the backends through the proxy six times:
 
@@ -151,78 +134,29 @@ for i in 1 2 3 4 5 6; do curl -s localhost:8000/hello; echo; done
 
 > **Output**
 > ```text
-> {"message":"Good Morning!","hostname":"c42c94c0d65f"}
-> {"message":"Good Morning!","hostname":"7932d8ce4ff0"}
-> {"message":"Good Morning!","hostname":"c42c94c0d65f"}
-> {"message":"Good Morning!","hostname":"7932d8ce4ff0"}
-> {"message":"Good Morning!","hostname":"c42c94c0d65f"}
-> {"message":"Good Morning!","hostname":"7932d8ce4ff0"}
+> {"message":"Good Morning!","hostname":"9fc0b6795021"}
+> {"message":"Good Morning!","hostname":"52f1fce56e35"}
+> {"message":"Good Morning!","hostname":"9fc0b6795021"}
+> {"message":"Good Morning!","hostname":"52f1fce56e35"}
+> {"message":"Good Morning!","hostname":"9fc0b6795021"}
+> {"message":"Good Morning!","hostname":"52f1fce56e35"}
 > ```
 
-The hostname alternates: the proxy sends each request to the next instance – *round robin*.
+The hostname alternates: the proxy sends each request to the next instance – *round robin*. The hostnames are the container IDs of the two backends.
 
-Now ask through the frontend:
+## 5. Scale up while watching
 
-```bash
-for i in 1 2 3 4 5 6; do curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"; done
-```
-
-> **Output**
-> ```text
-> Server: <strong>c42c94c0d65f
-> Server: <strong>c42c94c0d65f
-> Server: <strong>c42c94c0d65f
-> Server: <strong>c42c94c0d65f
-> Server: <strong>c42c94c0d65f
-> Server: <strong>c42c94c0d65f
-> ```
-
-Always the same backend? This is not a "sticky session" – the proxy has no idea which page you are on. Each page of the frontend makes **two** requests to the backend: `/hello` and `/shopping-list`. Round robin counts requests, not pages – with two backends, `/hello` always lands on the same one. Keep that in mind for the next steps.
-
-### 5.1 Why not just the name `backend`?
-
-Two containers, one service. What does the name `backend` resolve to? The toolbox from tutorial 04 (you are in the `code` folder):
+Open a **second terminal**, change into `code`, and let a loop call the backends once per second. Leave it running for the rest of this tutorial:
 
 ```bash
-docker build -t toolbox toolbox
+cd code
 ```
 
 ```bash
-docker run --rm --network shopping_default toolbox nslookup backend
+while true; do curl -s localhost:8000/hello; echo; sleep 1; done
 ```
 
-> **Output**
-> ```text
-> Server:		127.0.0.11
-> Address:	127.0.0.11#53
->
-> Non-authoritative answer:
-> Name:	backend
-> Address: 172.27.0.4
-> Name:	backend
-> Address: 172.27.0.2
-> ```
-
-**Both** addresses: Compose gives every container of a service the service name. So why the proxy? Call the backend by name six times:
-
-```bash
-docker run --rm --network shopping_default toolbox sh -c 'for i in 1 2 3 4 5 6; do curl -s backend:8000/hello; echo; done'
-```
-
-> **Output**
-> ```text
-> {"message":"Good Morning!","hostname":"7932d8ce4ff0"}
-> {"message":"Good Morning!","hostname":"c42c94c0d65f"}
-> {"message":"Good Morning!","hostname":"c42c94c0d65f"}
-> {"message":"Good Morning!","hostname":"7932d8ce4ff0"}
-> ...
-> ```
-
-Mixed, but not alternating: the client picks one of the addresses, and which one is up to the client. A client that keeps its connection open stays with one instance for good. Name resolution is not load balancing – the proxy decides per request, and it knows which instances are healthy.
-
-## 6. Scale up and down
-
-Scale to three backends while everything is running:
+Two hostnames, alternating. Now, in the **first terminal**, scale to three backends while everything is running:
 
 ```bash
 docker compose -f compose-lb.yaml up -d --scale backend=3
@@ -230,78 +164,15 @@ docker compose -f compose-lb.yaml up -d --scale backend=3
 
 > **Output**
 > ```text
->  Container shopping-backend-1 Running
->  Container shopping-backend-2 Running
 >  Container shopping-frontend-1 Running
 >  Container shopping-proxy-1 Running
+>  Container shopping-backend-1 Running
+>  Container shopping-backend-2 Running
 >  Container shopping-backend-3 Created
 >  Container shopping-backend-3 Started
 > ```
 
-Only one new container – the rest keeps running. Look:
-
-```bash
-docker compose -f compose-lb.yaml ps
-```
-
-```bash
-docker network inspect shopping_default --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
-```
-
-`shopping-backend-3` with a new address. And the load balancer?
-
-```bash
-curl -s localhost:8080/api/http/services/backend@docker | grep -o '"url":"[^"]*"'
-```
-
-> **Output**
-> ```text
-> "url":"http://172.27.0.6:8000"
-> "url":"http://172.27.0.4:8000"
-> "url":"http://172.27.0.2:8000"
-> ```
-
-Three servers – without any change to Traefik's configuration. Call the backends:
-
-```bash
-for i in 1 2 3 4 5 6; do curl -s localhost:8000/hello; echo; done
-```
-
-Three different hostnames. Through the frontend, the hostname now changes, too – two requests per page, three instances:
-
-```bash
-for i in 1 2 3 4 5 6; do curl -s localhost:5000/hello | grep -o "Server: <strong>[^<]*"; done
-```
-
-Scale down to one:
-
-```bash
-docker compose -f compose-lb.yaml up -d --scale backend=1
-```
-
-```bash
-docker compose -f compose-lb.yaml ps
-```
-
-One backend left. The load balancer noticed, too:
-
-```bash
-curl -s localhost:8080/api/http/services/backend@docker | grep -o '"url":"[^"]*"'
-```
-
-```bash
-for i in 1 2 3 4 5 6; do curl -s localhost:8000/hello; echo; done
-```
-
-Always the same hostname – and the frontend keeps working.
-
-## 7. Let an instance crash
-
-Scale back to three:
-
-```bash
-docker compose -f compose-lb.yaml up -d --scale backend=3
-```
+Watch the second terminal: after a moment, a **third hostname** shows up in the loop – Traefik found the new instance without any change to its configuration. Only one new container was created; the others kept running. Look:
 
 ```bash
 docker compose -f compose-lb.yaml ps backend
@@ -311,11 +182,19 @@ docker compose -f compose-lb.yaml ps backend
 > ```text
 > NAME                 IMAGE              COMMAND                  SERVICE   CREATED          STATUS          PORTS
 > shopping-backend-1   shopping-backend   "uvicorn main:app --…"   backend   2 minutes ago    Up 2 minutes    8000/tcp
-> shopping-backend-2   shopping-backend   "uvicorn main:app --…"   backend   5 seconds ago    Up 5 seconds    8000/tcp
-> shopping-backend-3   shopping-backend   "uvicorn main:app --…"   backend   5 seconds ago    Up 5 seconds    8000/tcp
+> shopping-backend-2   shopping-backend   "uvicorn main:app --…"   backend   2 minutes ago    Up 2 minutes    8000/tcp
+> shopping-backend-3   shopping-backend   "uvicorn main:app --…"   backend   10 seconds ago   Up 9 seconds    8000/tcp
 > ```
 
-Crash one of them with `/kill` from tutorial 02. The proxy sends the request to whichever instance is next:
+```bash
+docker network inspect shopping_default --format "{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}"
+```
+
+`shopping-backend-3`, with an address of its own. Compare with section 3.
+
+## 6. Let instances crash
+
+Crash one backend with `/kill` from tutorial 02. The proxy sends the request to whichever instance is next:
 
 ```bash
 curl localhost:8000/kill
@@ -326,7 +205,90 @@ curl localhost:8000/kill
 > Bad Gateway
 > ```
 
-The instance died before it could answer, so the proxy reports an error. Look again:
+The instance died before it could answer, so the proxy reports an error for this one request. Watch the second terminal: two hostnames again, and no errors. Traefik noticed that the container stopped and took it out of the rotation. Look:
+
+```bash
+docker compose -f compose-lb.yaml ps -a backend
+```
+
+> **Output**
+> ```text
+> NAME                 IMAGE              COMMAND                  SERVICE   CREATED          STATUS                     PORTS
+> shopping-backend-1   shopping-backend   "uvicorn main:app --…"   backend   3 minutes ago    Up 3 minutes               8000/tcp
+> shopping-backend-2   shopping-backend   "uvicorn main:app --…"   backend   3 minutes ago    Exited (1) 5 seconds ago
+> shopping-backend-3   shopping-backend   "uvicorn main:app --…"   backend   1 minute ago     Up 1 minute                8000/tcp
+> ```
+
+`-a` shows the stopped one, too: `Exited (1)` – and it stays that way. Nobody brings it back. Crash the next one:
+
+```bash
+curl localhost:8000/kill
+```
+
+The second terminal shows only one hostname now. The application still works – with a third of its capacity. And the last one:
+
+```bash
+curl localhost:8000/kill
+```
+
+> **Output**
+> ```text
+> Bad Gateway
+> ```
+
+The second terminal now shows:
+
+> **Output**
+> ```text
+> 404 page not found
+> 404 page not found
+> ```
+
+No backend left – Traefik has nowhere to send the request. Reload the page in the browser: the frontend shows an error, too. Look:
+
+```bash
+docker compose -f compose-lb.yaml ps -a backend
+```
+
+All three `Exited (1)`. Three instances made the application survive two crashes – but every crash permanently costs one instance. Stop everything:
+
+```bash
+docker compose -f compose-lb.yaml down
+```
+
+## 7. Restart on failure
+
+Docker can restart a container whose process fails – you saw `--restart on-failure` with `docker run` in tutorial 02, section 11.1. Open the Compose file:
+
+```bash
+code compose-lb.yaml
+```
+
+Add one line to the `backend` service, right below `replicas: 2` (same indentation as `deploy:`), and save:
+
+```yaml
+  backend:
+    build: ./backend-fastapi
+    deploy:
+      replicas: 2
+    restart: on-failure
+    labels:
+      ...
+```
+
+Start again with three backends:
+
+```bash
+docker compose -f compose-lb.yaml up -d --scale backend=3
+```
+
+In the second terminal, the loop shows three hostnames again. Now play the same scenario. Crash one:
+
+```bash
+curl localhost:8000/kill
+```
+
+Watch the loop: for a moment two hostnames – then the third one is back, **with the same hostname** as before. Look:
 
 ```bash
 docker compose -f compose-lb.yaml ps backend
@@ -334,13 +296,13 @@ docker compose -f compose-lb.yaml ps backend
 
 > **Output**
 > ```text
-> NAME                 IMAGE              COMMAND                  SERVICE   CREATED          STATUS          PORTS
-> shopping-backend-1   shopping-backend   "uvicorn main:app --…"   backend   2 minutes ago    Up 2 seconds    8000/tcp
-> shopping-backend-2   shopping-backend   "uvicorn main:app --…"   backend   10 seconds ago   Up 9 seconds    8000/tcp
-> shopping-backend-3   shopping-backend   "uvicorn main:app --…"   backend   10 seconds ago   Up 9 seconds    8000/tcp
+> NAME                 IMAGE              COMMAND                  SERVICE   CREATED          STATUS         PORTS
+> shopping-backend-1   shopping-backend   "uvicorn main:app --…"   backend   30 seconds ago   Up 29 seconds  8000/tcp
+> shopping-backend-2   shopping-backend   "uvicorn main:app --…"   backend   30 seconds ago   Up 29 seconds  8000/tcp
+> shopping-backend-3   shopping-backend   "uvicorn main:app --…"   backend   30 seconds ago   Up 2 seconds   8000/tcp
 > ```
 
-Compare CREATED and STATUS: one instance was created minutes ago, but has been up for only a few seconds – `restart: on-failure` brought the same container back. Count the restarts per container (`ps -q` prints only the IDs):
+Compare CREATED and STATUS: all three were created at the same time, but one has been up for only a few seconds. Docker restarted the **same container** – same ID, same hostname, a new process. Count the restarts per container (`ps -q` prints only the IDs):
 
 ```bash
 docker inspect --format '{{.Name}} {{.RestartCount}}' $(docker compose -f compose-lb.yaml ps -q backend)
@@ -348,20 +310,47 @@ docker inspect --format '{{.Name}} {{.RestartCount}}' $(docker compose -f compos
 
 > **Output**
 > ```text
-> /shopping-backend-1 1
+> /shopping-backend-1 0
 > /shopping-backend-2 0
-> /shopping-backend-3 0
+> /shopping-backend-3 1
 > ```
 
-Meanwhile, the other two kept answering:
+Now the scenario that ended with `404` in section 6 – three crashes in a row:
 
 ```bash
-for i in 1 2 3 4 5 6; do curl -s localhost:8000/hello; echo; done
+curl localhost:8000/kill
 ```
+
+```bash
+curl localhost:8000/kill
+```
+
+```bash
+curl localhost:8000/kill
+```
+
+Watch the loop: maybe a short gap, then all three hostnames are back. Look again:
+
+```bash
+docker compose -f compose-lb.yaml ps backend
+```
+
+```bash
+docker inspect --format '{{.Name}} {{.RestartCount}}' $(docker compose -f compose-lb.yaml ps -q backend)
+```
+
+> **Output**
+> ```text
+> /shopping-backend-1 2
+> /shopping-backend-2 1
+> /shopping-backend-3 1
+> ```
+
+Every crash was repaired – no instance was lost. Several instances behind a load balancer plus automatic restarts: the application now survives failures of single parts. That is a first piece of **resilience** – and exactly what Kubernetes does on a larger scale.
 
 ## 8. Where is the shopping list?
 
-Add an item through the proxy:
+The instances survive. What about the data? Add an item through the proxy:
 
 ```bash
 curl -X POST localhost:8000/shopping-list -H "Content-Type: application/json" -d '{"name": "apples", "amount": 3}'
@@ -376,13 +365,30 @@ for i in 1 2 3 4 5 6; do curl -s localhost:8000/shopping-list; echo; done
 > **Output**
 > ```text
 > []
+> []
+> []
+> []
 > [{"name":"apples","amount":3}]
 > []
-> []
-> ...
 > ```
 
-Sometimes the apples are there, mostly not. Each backend instance keeps its own list in memory – the POST went to one of them, the GETs go to all of them. Try the same in the browser while you scale. Scaling only works for instances that share no state – that is the topic of [08 – State](08-state.md).
+Sometimes the apples are there, mostly not. Each backend instance keeps its own list in memory – the POST went to one of them, the GETs go to all of them. Try the same in the browser.
+
+Now crash one instance:
+
+```bash
+curl localhost:8000/kill
+```
+
+```bash
+for i in 1 2 3 4 5 6; do curl -s localhost:8000/shopping-list; echo; done
+```
+
+If the crash hit the instance with the apples, they are gone everywhere – even though the instance came back: a restart brings back the process, not its memory. (If you still see them, kill again.)
+
+Scaling and restarting only work for instances that share no state. As soon as the instances have to share the shopping list, they have to agree on it – and the question is what happens when they cannot reach each other. That is the **CAP theorem**, and keeping the data outside the instances is the topic of [08 – State](08-state.md).
+
+Stop the loop in the second terminal with **Ctrl+C**.
 
 ## 9. Clean up
 
@@ -394,7 +400,11 @@ docker compose -f compose-lb.yaml down
 docker compose -f compose-lb.yaml ps
 ```
 
-Empty – all five containers and the network are gone.
+Empty – all five containers and the network are gone. Undo your change to the Compose file, so the tutorial starts the same way next time:
+
+```bash
+git restore compose-lb.yaml
+```
 
 ```bash
 cd ..
@@ -406,10 +416,10 @@ cd ..
 |---|---|
 | `docker compose -f compose-lb.yaml up -d` | starts proxy, backends and frontend |
 | `docker compose -f compose-lb.yaml up -d --scale backend=3` | changes the number of backend instances while running |
-| `docker compose -f compose-lb.yaml ps backend` | lists the containers of one service |
-| `curl -s localhost:8080/api/http/services/backend@docker` | asks Traefik which backend instances it knows |
-| `for i in 1 2 3 4 5 6; do curl -s localhost:8000/hello; echo; done` | calls the backends through the proxy six times |
-| `curl localhost:8000/kill` | crashes one backend instance; `restart: on-failure` brings it back |
+| `docker compose -f compose-lb.yaml ps -a backend` | lists the containers of one service, stopped ones too |
+| `while true; do curl -s localhost:8000/hello; echo; sleep 1; done` | calls the backends through the proxy once per second |
+| `curl localhost:8000/kill` | crashes one backend instance |
+| `restart: on-failure` | Docker restarts a crashed container – same container, new process |
 | `docker inspect --format '{{.Name}} {{.RestartCount}}' <ids>` | how often each container was restarted |
 
 Next: [08 – State](08-state.md)

@@ -17,7 +17,6 @@ services:
     build: ./backend-fastapi
     deploy:
       replicas: 2
-    restart: on-failure
     labels:
       - traefik.enable=true
       - traefik.http.routers.backend.rule=PathPrefix(`/`)
