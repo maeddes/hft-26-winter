@@ -437,3 +437,109 @@ By the end of this lecture, students will be able to:
 14. What is a service in a Compose file, and how does it relate to containers?
 15. Two backend instances are running. Why does the frontend need a load balancer in front of them?
 16. Explain every switch in `docker run -d --rm --name web --network shop-net -p 8080:80 -e MODE=dev -v data:/data nginx`.
+
+## 2026-Nov-20 Cloud-Native Theory: CAP, Conway's Law, 12-Factor Apps – and Scaling Live
+
+No session on 27 Nov (Studienprojekt). The next session is on **4 Dec**.
+
+### **Content Overview**
+
+**Where we stand**
+   - Two components in different frameworks (Flask, FastAPI), a load balancer added without changing either of them, several backend instances. Not there yet: resilience patterns such as rate limiting, and security.
+   - Traefik is one of many entries in the [CNCF landscape](https://landscape.cncf.io) – open source, published as an official image, used here for a small part of what it can do.
+
+**Service models: who manages what**
+   - From traditional IT to IaaS, CaaS, PaaS and SaaS: the higher up the stack, the less you manage yourself – and the less freedom you have. CaaS is not in the NIST definition, but has become common: you build containers, the provider runs them.
+   - To think about: where do AI coding assistants fit – software you consume, or a platform for building software?
+
+**CAP theorem**
+   - **Scale up** (a bigger machine) leaves the application unchanged, but has limits and remains a single point of failure. **Scale out** (more instances) has implications for the application: the instances have to agree on their state.
+   - Formulated by Eric Brewer (around 2000, proven by Gilbert and Lynch in 2002): **C**onsistency, **A**vailability, **P**artition tolerance. In a distributed system, network partitions happen – so when the instances cannot reach each other, the system has to choose: stay consistent and refuse or delay answers, or stay available and possibly answer with outdated data.
+   - Examples: a bank account – consistency first, transactions one after the other (CP). The internet's DNS – availability first, updates spread over time: *eventual consistency* (AP).
+   - Brewer later joined Google and presented Kubernetes in 2014.
+
+**Conway's Law**
+   - "Any organization that designs a system will inevitably produce a design whose structure is a copy of the organization's communication structure." (Melvin Conway, 1968)
+   - Communication paths grow with n(n−1)/2: 3 people – 3 paths, 6 – 15, 9 – 36. Hence small teams ("two-pizza teams") organized around business capabilities (shopping cart, recommendations, invoicing) instead of technical layers (UI, middleware, database) – one of the roots of microservices.
+
+**Domain-Driven Design** – overview only
+   - Finding the right boundaries for a service and a team: domain, bounded context, ubiquitous language.
+   - Breaking up a monolith ("big ball of mud") step by step: cut out one context at a time and put an anti-corruption layer in between – as Amazon and Netflix did.
+
+**Fallacies of distributed computing** – recap
+   - The network is not reliable, latency is not zero, the network is not secure, … Each one needs an answer in the application: a controlled error state instead of a crash, timeouts and retries, security.
+
+**12-factor apps**
+   - Written down by Heroku, a PaaS provider: rules an application had to follow to run on its platform. They became general guidelines for cloud-native applications.
+   - The factors, with examples from [`code/`](code/):
+     - I *Codebase*, III *Config*: one repository for all environments; configuration such as `BACKEND_URL` comes from the environment (`-e`, `environment:` in Compose), never from the code.
+     - II *Dependencies*: declared explicitly – `requirements.txt`, `pom.xml`, Gradle.
+     - IV *Backing services*: databases and brokers attached through configuration.
+     - V *Build, release, run*: build an artifact (an image), combine it with the configuration of an environment, run it.
+     - VI *Processes*: stateless – the in-memory shopping list breaks this rule.
+     - VII *Port binding*: FastAPI and Flask bring their own web server and listen on a port.
+     - VIII *Concurrency*: scale each component on its own – one frontend, several backends.
+     - IX *Disposability*: start fast, stop at any time ("cattle, not pets").
+     - X *Dev/prod parity*, XI *Logs* as streams to stdout (`docker logs`), XII *Admin processes* in the repository, run through a pipeline.
+
+**SOA, microservices, FaaS**
+   - SOA made services smaller, but tied them to a central, vendor-specific enterprise service bus. Microservices are self-contained.
+   - "Micro" is not a goal: every call between services goes over the network. Scope services well (DDD) – small changes and fast, frequent releases are the actual gain, and a well-built monolith can be delivered continuously, too.
+   - Functions as a service (AWS Lambda and others): code only runs when it is invoked, you pay per execution, startup has to be fast.
+
+**Live: scaling and state** – [tutorial 07](tutorials/07-scaling.md)
+   - Compose files can build images, reference existing ones, or both – [tutorial 06, section 6](tutorials/06-docker-compose.md#6-build-or-image). The [tutorial scripts](tutorials/scripts/) run all steps of a tutorial; `prune-all.sh` resets Docker completely.
+   - Round robin over two backends, scaling to three and down to one, crashing instances with `/kill` until the service is gone – and `restart: on-failure` bringing them back.
+   - The state problem: an instance that restarts has an empty shopping list; four instances have four different lists. The instances do not share their state at all. Moving the state out of the instances into a database is the next step – and then the CAP question becomes real.
+   - The REST slides were shared, but not covered in this session.
+
+### **Homework**
+
+- Repeat [tutorial 07](tutorials/07-scaling.md) with two terminals side by side: a request loop in one, scaling and crashing in the other.
+- Take a piece of code you have written and check it against the twelve factors.
+
+---
+
+### **Learning Objectives**
+
+By the end of this lecture, students will be able to:
+- Distinguish scaling up from scaling out and name the implications of scaling out.
+- Explain the CAP theorem and decide, for a given application, whether consistency or availability should win during a network partition.
+- Explain eventual consistency with an example.
+- State Conway's Law and explain why small, capability-oriented teams lead to smaller services.
+- Place Domain-Driven Design and anti-corruption layers in the context of breaking up a monolith.
+- Explain the twelve factors and check an application against them.
+- Explain why in-memory state prevents scaling and safe restarts.
+- Compare SOA, microservices and FaaS.
+
+---
+
+### **Student/Review Questions**
+
+1. What is the difference between scaling up and scaling out? Which one has implications for the application, and why?
+2. What do the three letters of CAP stand for? Why is partition tolerance not optional in a distributed system?
+3. A bank account and the internet's DNS: which one favors consistency, which one availability? What does each one give up?
+4. What is eventual consistency?
+5. State Conway's Law. How many communication paths does a team of 8 people have?
+6. Why did teams organized around technical layers (UI, middleware, database) lead to hard-to-change systems?
+7. What is an anti-corruption layer used for when breaking up a monolith?
+8. Which twelve factors did the shopping list application already follow, and which one does it violate?
+9. Why should configuration such as a database URL be read from environment variables? What goes wrong if it is in the code?
+10. What is the difference between the build, the release and the run stage?
+11. Why should an application write its logs to stdout instead of a file inside the container?
+12. What does disposability mean, and why does it require stateless processes?
+13. What was the main weakness of SOA with an enterprise service bus?
+14. Why is "the smaller the better" a misunderstanding of microservices?
+15. How does FaaS differ from PaaS in the way the code is executed and billed?
+16. Three backend instances keep their data in memory. A user adds an item and reads the list several times. What do they see? What happens when an instance crashes?
+17. Look at this code from a 12-factor perspective. What would you change?
+
+    ```python
+    DATABASE_URL = "postgresql://admin:secret@10.0.0.12:5432/shop"
+    cart = {}  # all carts of all users
+
+    def add_item(user, item):
+        cart.setdefault(user, []).append(item)
+        with open("/var/log/shop.log", "a") as log:
+            log.write(f"{user} added {item}\n")
+    ```

@@ -5,6 +5,38 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [x] addressed in class
 - [ ] not yet addressed (or only published here)
 
+## 2026-Nov-20
+
+### Corrections
+
+- [ ] **The P in CAP is partition *tolerance*, not partitioning:** "CAP stands for consistency, availability, and partitioning", "if we scale into multiple instances, then we have partitioning". A partition is a broken network between nodes – messages get lost – not the fact that there are several instances. Several instances are the precondition; the partition is the failure. In a distributed system partitions cannot be ruled out, so P is not a choice: *during* a partition, a system chooses between C and A. This is what the quote on your own slide 7 says (Brewer, 2012).
+- [ ] **The bank is CP, not AP:** consistency first, transactions one after the other, availability is the price – "this would be an example for, let's say, AP". The description was right, the label wrong: that is **CP**. DNS was correctly the AP example.
+- [ ] **"Two out of three at a given point in time"** – and slide 8, "Choose 2" – is exactly the misunderstanding Brewer warns about on slide 7. Without a partition, there is no trade-off between C and A. (PACELC extends this: *else*, between latency and consistency.)
+- [ ] **The live demo was not CAP:** "that's like CAP theorem without partitioning … no availability, no consistency", and four instances with different lists: "full availability, but no consistency". The instances share no state at all – nothing is replicated, so nothing could become inconsistent through a partition. The demo shows why state must leave the instances; CAP becomes relevant once instances share state through replicas.
+- [ ] **Conway was a computer scientist:** "before computers were even there … technical manufacturing". Melvin Conway's paper "How Do Committees Invent?" appeared in *Datamation* in April 1968 (submitted 1967), about the design of computer systems. Conway was a programmer – the term *coroutine* goes back to him.
+- [ ] **AWS did not use VMware:** "infrastructure as a service, most particularly through Amazon Web Services with VMware technology". EC2 ran on the Xen hypervisor; since 2017 on Nitro (KVM-based).
+- [ ] **Git is older than the 12 factors:** "after 2012, I don't know exactly when Git was released". Git appeared in 2005, GitHub in 2008. In 2011/12 Git was already widespread, Subversion still common – hence "revision control".
+- [ ] **The Twelve-Factor App is from around 2011,** not 2012 (slide 25): written by Adam Wiggins, co-founder of Heroku. Heroku has belonged to Salesforce since the end of 2010.
+- [ ] **FaaS is not five years old:** "came up maybe five years ago or so". AWS Lambda launched in November 2014.
+- [ ] **`docker compose push` exists:** "if you're going to push them, that's something Docker Compose is not going to do for you". `docker compose push` pushes the images of all services with an `image:` name – that name has to include the registry or Docker ID.
+- [ ] **Build vs. release (factor V):** "such a release could, for example, be a container image. And then the config can be added to that release". In twelve-factor terms, the image is the *build*; the *release* is build plus configuration.
+- [ ] **Small details:** "ubiquitous network access" once more – NIST says *broad network access* (see Oct-23). The Scrum Guide (2020) says "typically 10 or fewer people", not seven or eight.
+- [ ] **Slides (Cloud-Native SW Dev):**
+  - p. 10: "As cloud native applications are considered as stateless, Partition Tolerance is given in the Cloud" – partitions are not prevented by stateless applications; the state just moves to the backing services, where CAP applies.
+  - p. 33: the title says "Disposability, Dev/Prod Parity", the content is Logs and Admin processes.
+  - p. 45: "FaaS fully implements 12-Factor App" – an overstatement.
+  - "semester 2024", Novatec branding; the job title differs between this deck and the REST deck.
+
+### Ideas to go deeper
+
+- [ ] **Show CAP for real** once the backend has a database: two replicas, `docker network disconnect` between them, write on one side, read on the other – then decide: refuse (CP) or answer with old data (AP).
+- [ ] **AI coding assistants and the service models** (asked in class): SaaS or a tool on the PaaS level? A good exam or discussion question.
+- [ ] **Name the pattern:** cutting a monolith into pieces with an anti-corruption layer in between is the *Strangler Fig* pattern (Martin Fowler).
+- [ ] **Dependencies in `requirements.txt` are ranges** (`fastapi>=0.115,<1.0`): explicit, but not reproducible. The image fixes the versions at build time; a lock file (`pip freeze`, `uv.lock`) fixes them in the repository. Fits factor II.
+- [ ] **Traefik is in the landscape, but not a CNCF project** (Traefik Labs) – like Grafana (Oct-23).
+- [ ] **REST deck before using it** (not shown yet): p. 6 calls REST "a communications protocol" – it is an architectural style; p. 12 "Stateless (on Client-side)" – it is the server that keeps no session state; "HATEOS" → HATEOAS; the constraints *cacheable* and *layered system* are missing; p. 15 says "three steps" for a model with four levels (0–3); p. 14 is a leftover agenda (Spring Cloud, Config Server); "Winter Semester 2024".
+- [ ] **New polyglot example** (announced): frontend in Python, backend in Java or another language – same API, to show factor VIII.
+
 ## 2026-Nov-13
 
 ### Corrections
@@ -56,11 +88,11 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 - [ ] **Remove the tracked `__pycache__/main.cpython-314.pyc`:** `.gitignore` does not affect files that are already committed – `git rm --cached -r __pycache__`.
 - [ ] **Non-root in the demo Dockerfiles:** recommended in class, but `Dockerfile-backend` and `Dockerfile-frontend` still run as root. A `USER` line would make them consistent.
 - [ ] **The frontend has `timeout=5`:** a concrete countermeasure for "the network is reliable" and "latency is zero" – worth pointing out when connecting the two containers.
-- [ ] **State per instance:** v1 and v2 each keep their own shopping list in memory. Scaling or replacing a container loses data – the bridge to stateless services, volumes and a database.
+- [x] **State per instance:** v1 and v2 each keep their own shopping list in memory. Scaling or replacing a container loses data – the bridge to stateless services, volumes and a database.
 - [ ] **Copilot acted in the background:** it built and tested the image before being asked, which is why the first `docker build` was already cached. Worth making visible to students: agent mode runs commands.
 - [ ] **Multi-platform fix still to be shown live** (postponed from Oct-30 again).
 - [ ] **PostgreSQL 18 moved its data directory:** the image declares the volume at `/var/lib/postgresql` (PGDATA `/var/lib/postgresql/18/docker`). Most guides still mount `/var/lib/postgresql/data` – with version 18 that no longer persists the data as expected.
-- [ ] **Storage by configuration instead of profiles:** FastAPI has no Spring-style profiles, but one environment variable (`DATABASE_URL`) is enough to switch the same image between memory and PostgreSQL – 12-factor "config in the environment". Used in tutorial 07.
+- [x] **Storage by configuration instead of profiles:** FastAPI has no Spring-style profiles, but one environment variable (`DATABASE_URL`) is enough to switch the same image between memory and PostgreSQL – 12-factor "config in the environment". Used in tutorial 07.
 - [ ] **Tutorial 08 idea:** swap the implementation behind the load balancer – a Spring Boot or Go backend with the same API – without touching proxy or database. The polyglot exchange from the KubeCon talk.
 
 ## 2026-Oct-30
@@ -106,9 +138,9 @@ Corrections and ideas collected after each session: what was imprecise, outdated
 
 ### Ideas to go deeper
 
-- [ ] **Each fallacy has a countermeasure.** Timeouts and retries with backoff (reliability, latency), caching and compression (bandwidth), TLS/mTLS (security), service discovery (topology), observability (one administrator). Retries create duplicates, which leads to **idempotency** and fits the REST session.
+- [x] **Each fallacy has a countermeasure.** Timeouts and retries with backoff (reliability, latency), caching and compression (bandwidth), TLS/mTLS (security), service discovery (topology), observability (one administrator). Retries create duplicates, which leads to **idempotency** and fits the REST session.
 - [ ] **Service discovery in practice:** client-side vs. server-side discovery. In Kubernetes: DNS and Services, so no extra registry is needed.
-- [ ] **Serverless and scale to zero** as the extreme end of elasticity and "pay per use".
+- [x] **Serverless and scale to zero** as the extreme end of elasticity and "pay per use".
 - [ ] **Shared responsibility:** who secures what in IaaS, PaaS and SaaS.
 - [x] **The codespace is a container:** defined by a `devcontainer.json` ([containers.dev](https://containers.dev)) – the bridge to the container session.
 

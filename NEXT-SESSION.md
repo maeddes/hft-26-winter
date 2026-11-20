@@ -1,29 +1,31 @@
-# Next Session: 2026-Nov-20
+# Next Session: 2026-Dec-04
 
-Prepared after 2026-Nov-13. Start at the top.
+Prepared after 2026-Nov-20. No session on Nov-27 (Studienprojekt). Start at the top.
 
 ## Plan
 
-1. **What was wrong with the codespace** (~5 min): names resolved, connections timed out, a fresh codespace worked. Then redo the part that failed – frontend and backend on `shop-net`, toolbox in the network – in a codespace tested before class ([tutorial 04](tutorials/04-container-networking.md)).
-2. **Corrections** (~5 min) – top three from [LEARNINGS.md → 2026-Nov-13](LEARNINGS.md#2026-nov-13):
-   - A Compose service is not a container – `replicas: 2` gives two containers, both reachable as `backend`
-   - `docker stop` / `start` keep the file system, not the memory
-   - `VOLUME` in a Dockerfile creates an anonymous volume on every run
-3. **Traefik explained** (as announced): Docker provider and labels, the dashboard on port 8080, round robin per request – and why the frontend seems stuck on one instance ([tutorial 07](tutorials/07-scaling.md)).
-4. **Storage live:** the nginx start page as a bind mount (promised), then a named volume. The backend in `code/` still gets no database.
-5. **Last year's PVL examples and suggestions** (as announced) – the PVL can start now.
+1. **Corrections** (~5 min) – top three from [LEARNINGS.md → 2026-Nov-20](LEARNINGS.md#2026-nov-20):
+   - The P in CAP is partition *tolerance* – a broken network between nodes, not "several instances"
+   - The bank example is CP, not AP
+   - `docker compose push` exists – Compose can push the images it built
+2. **Tutorial 07 once more** (as announced: "definitely gonna repeat that next time"), two terminals side by side: request loop, scale, kill, `restart: on-failure`.
+3. **State out of the instances** (announced as the goal: "a full-blown application with a network component, a database component, scaled instances"):
+   - backend with a database, configured by `DATABASE_URL` (factor III), so the shopping list survives restarts and is the same on every instance
+   - then the CAP question for real: two replicas, cut the network between them (idea in LEARNINGS)
+4. **Last year's PVL examples and suggestions** – announced on Nov-13, not done yet. Start the PVL.
+5. If there is time: **REST** – the slides were shared but not covered; fits with renaming `/shopping-list` (Nov-13 idea). Look at the slide notes in LEARNINGS first.
 
-Before class: test a fresh codespace (`docker compose up` plus the toolbox), and send the tutorial update if not done yet.
-
-**To confirm:** "two sessions from now, there is no session (Studienprojekt)" – that would be 2026-Nov-27. Tell the students.
+Before class: decide how the database gets into `code/` – until now the rule was "no database in the backend yet". Rework [tutorial 08](tutorials/08-state.md) accordingly (still a draft on `shopping-api`). Test in a fresh codespace.
 
 ## Promised in class
 
-- [ ] Update the tutorials and send them out "by Sunday" (Nov-15): frontend as a local process in 04, bind mount example, toolbox – see LEARNINGS
-- [ ] Explain Traefik in detail
-- [ ] Repeat the toolbox debugging quickly at the start
-- [ ] Find out what broke the codespace ("fix this until next week")
-- [ ] Examples from last year's PVL groups, suggestions for topics
+- [ ] Repeat tutorial 07 (Nov-20)
+- [ ] Database for the backend, scaled instances with shared state (Nov-20)
+- [ ] A new example with a backend in another language, e.g. Java (Nov-20)
+- [ ] Look deeper into CAP, the fallacies and resilience later on; Kubernetes and OpenTelemetry later in the semester (Nov-20)
+- [ ] Examples from last year's PVL groups, suggestions for topics (Nov-13)
+- [ ] Repeat the toolbox debugging quickly (Nov-13)
+- [ ] Find out what broke the codespace on Nov-13
 - [ ] Upload the videos right after the lecture
 - [ ] Publish more samples in the repository (Spring Boot, Quarkus, Hono, Go, Rust were shown)
 - [ ] Spreadsheet for PVL teams and topics
@@ -31,3 +33,4 @@ Before class: test a fresh codespace (`docker compose up` plus the toolbox), and
 - [ ] Fix the multi-platform image issue
 - [ ] Kubernetes environment for students without a capable machine
 - [ ] Find out how far the free Copilot tier gets alongside Codespaces
+- [x] Tutorials updated: frontend as a local process (04), Compose build vs. image (06), Traefik explained (07), scripts
